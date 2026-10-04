@@ -16,6 +16,7 @@ def format_waktu(ms):
 
 class BilahPemutar(QWidget):
     panel_diminta = Signal(str)  # "diputar" atau "antrean"
+    lirik_diminta = Signal()
 
     def __init__(self, pemutar, parent=None):
         super().__init__(parent)
@@ -80,6 +81,7 @@ class BilahPemutar(QWidget):
 
         # Kanan: panel sedang diputar, antrean, volume
         self.tombol_diputar = TombolIkon("sedang_diputar", "Sedang diputar", 18, 32)
+        self.tombol_lirik = TombolIkon("mikrofon", "Lirik", 18, 32)
         self.tombol_antrean = TombolIkon("antrean", "Antrean", 18, 32)
         ikon_volume = QLabel()
         ikon_volume.setPixmap(pixmap_ikon("volume", TEKS_REDUP, 18))
@@ -92,6 +94,7 @@ class BilahPemutar(QWidget):
         tata_kanan.setSpacing(6)
         tata_kanan.addStretch()
         tata_kanan.addWidget(self.tombol_diputar)
+        tata_kanan.addWidget(self.tombol_lirik)
         tata_kanan.addWidget(self.tombol_antrean)
         tata_kanan.addSpacing(6)
         tata_kanan.addWidget(ikon_volume)
@@ -120,6 +123,7 @@ class BilahPemutar(QWidget):
         p.mode_berubah.connect(self._segarkan_mode)
         self.tombol_diputar.clicked.connect(lambda: self.panel_diminta.emit("diputar"))
         self.tombol_antrean.clicked.connect(lambda: self.panel_diminta.emit("antrean"))
+        self.tombol_lirik.clicked.connect(lambda: self.lirik_diminta.emit())
         self.slider_volume.valueChanged.connect(p.atur_volume)
         self.slider_posisi.sliderPressed.connect(lambda: setattr(self, "_sedang_geser", True))
         self.slider_posisi.sliderReleased.connect(self._selesai_geser)
@@ -142,6 +146,9 @@ class BilahPemutar(QWidget):
         """Ikon panel yang sedang terbuka diberi warna aksen."""
         self.tombol_diputar.ganti_ikon("sedang_diputar", AKSEN if mode == "diputar" else TEKS_REDUP)
         self.tombol_antrean.ganti_ikon("antrean", AKSEN if mode == "antrean" else TEKS_REDUP)
+
+    def atur_lirik_aktif(self, aktif):
+        self.tombol_lirik.ganti_ikon("mikrofon", AKSEN if aktif else TEKS_REDUP)
 
     def _tampilkan_lagu(self, lagu):
         self.sampul.setVisible(lagu is not None)

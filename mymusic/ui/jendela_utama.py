@@ -8,12 +8,14 @@ from mymusic.core.pemutar import Pemutar
 from mymusic.services.penyimpanan import PenyimpananPlaylist
 from mymusic.services.sesi import PenyimpananSesi
 from mymusic.services.youtube import (
-    adalah_link, ambil_id_playlist, ambil_playlist, ambil_playlist_rekomendasi, ambil_rekomendasi_lagu, cari_lagu,
+    adalah_link, ambil_id_playlist, ambil_lirik, ambil_playlist, ambil_playlist_rekomendasi, ambil_rekomendasi_lagu,
+    cari_lagu,
 )
 from mymusic.ui.bilah_atas import BilahAtas
 from mymusic.ui.bilah_pemutar import BilahPemutar
 from mymusic.ui.halaman_beranda import HalamanBeranda
 from mymusic.ui.halaman_cari import HalamanCari
+from mymusic.ui.halaman_lirik import HalamanLirik
 from mymusic.ui.halaman_playlist import SAYA, YOUTUBE, HalamanPlaylist
 from mymusic.ui.panel_kanan import DIPUTAR, PanelKanan
 from mymusic.ui.panel_koleksi import PanelKoleksi
@@ -35,6 +37,7 @@ class JendelaUtama(QMainWindow):
         self.isi_playlist = []  # lagu yang tampil di halaman playlist
         self._nomor_permintaan = 0  # untuk mengabaikan hasil cari/playlist yang sudah basi
         self._id_rekomendasi = None
+        self._halaman_sebelum_lirik = None
 
         self._buat_tampilan()
         self._sambungkan_sinyal()
@@ -53,8 +56,9 @@ class JendelaUtama(QMainWindow):
         self.beranda = HalamanBeranda()
         self.halaman_cari = HalamanCari()
         self.halaman_playlist = HalamanPlaylist()
+        self.halaman_lirik = HalamanLirik()
         self.tumpukan = QStackedWidget()
-        for halaman in (self.beranda, self.halaman_cari, self.halaman_playlist):
+        for halaman in (self.beranda, self.halaman_cari, self.halaman_playlist, self.halaman_lirik):
             self.tumpukan.addWidget(halaman)
         pusat = PanelBulat()
         tata_pusat = QVBoxLayout(pusat)
@@ -115,6 +119,9 @@ class JendelaUtama(QMainWindow):
         self.panel_kanan.tutup.connect(lambda: self.tampilkan_panel(None))
         self.panel_kanan.simpan_antrean.connect(self.simpan_antrean)
         self.bilah_pemutar.panel_diminta.connect(self._alihkan_panel)
+        self.bilah_pemutar.lirik_diminta.connect(self._alihkan_lirik)
+        self.halaman_lirik.geser.connect(self.pemutar.geser_ke)
+        self.pemutar.posisi_berubah.connect(self.halaman_lirik.atur_posisi)
 
         self.pemutar.lagu_berubah.connect(self._lagu_berubah)
         self.pemutar.mode_berubah.connect(lambda: self.halaman_playlist.atur_acak(self.pemutar.antrean.acak))
@@ -165,6 +172,7 @@ class JendelaUtama(QMainWindow):
     def tampilkan_halaman(self, halaman):
         self.tumpukan.setCurrentWidget(halaman)
         self.bilah_atas.atur_beranda_aktif(halaman is self.beranda)
+        self.bilah_pemutar.atur_lirik_aktif(halaman is self.halaman_lirik)
         self._tandai_koleksi()
 
     def tampilkan_panel(self, mode):
@@ -176,6 +184,28 @@ class JendelaUtama(QMainWindow):
 
     def _alihkan_panel(self, mode):
         self.tampilkan_panel(None if self.panel_kanan.mode() == mode else mode)
+
+    def _alihkan_lirik(self):
+        """Tombol lirik: buka halaman lirik, atau kembali ke halaman sebelumnya bila sudah terbuka."""
+        if self.tumpukan.currentWidget() is self.halaman_lirik:
+            self.tampilkan_halaman(self._halaman_sebelum_lirik or self.beranda)
+            return
+        self._halaman_sebelum_lirik = self.tumpukan.currentWidget()
+        self.tampilkan_halaman(self.halaman_lirik)
+        self._muat_lirik()
+
+    def _muat_lirik(self):
+        """Mengambil lirik lagu yang sedang diputar, hanya bila halaman lirik sedang terbuka."""
+        if self.tumpukan.currentWidget() is not self.halaman_lirik:
+            return
+        lagu = self.pemutar.antrean.sekarang
+        if lagu is None:
+            self.halaman_lirik.tampilkan_kosong()
+        elif lagu.video_id != self.halaman_lirik.video_id:  # belum dimuat untuk lagu ini
+            self.halaman_lirik.tampilkan_memuat(lagu)
+            jalankan_di_latar(ambil_lirik, lagu.video_id,
+                              selesai=lambda lirik: self.halaman_lirik.tampilkan(lagu, lirik),
+                              gagal=lambda pesan: self.halaman_lirik.tampilkan_gagal(lagu, pesan))
 
     def _minta_tempel_link(self):
         self.bilah_atas.fokus_cari()
@@ -256,6 +286,7 @@ class JendelaUtama(QMainWindow):
         self.halaman_playlist.tandai(lagu)
         self._tandai_koleksi()
         self._segarkan_tombol_playlist()
+        self._muat_lirik()
         if lagu and lagu.video_id != self._id_rekomendasi:
             self._id_rekomendasi = lagu.video_id
             jalankan_di_latar(ambil_rekomendasi_lagu, lagu.video_id,

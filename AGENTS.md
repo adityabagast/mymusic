@@ -16,7 +16,7 @@ YouTube Music secara streaming (tidak mengunduh), dengan antrean dan playlist.
 | Pencarian / playlist | `ytmusicapi` 1.12 — tanpa login (`YTMusic()`) |
 | URL audio | `yt-dlp` 2026.8 — `extract_info(download=False)`, format `bestaudio[ext=m4a]` |
 | OS pengguna | Windows 11, shell PowerShell |
-| Git | belum dipakai (bukan repository) |
+| Git | repo lokal, branch `main`, remote `origin` = https://github.com/adityabagast/mymusic (`.gitignore`: `.venv/`, `__pycache__/`, `data/`, `*.png`, `.vscode/`) |
 
 ## 2. Tentang pengguna — WAJIB dipatuhi
 
@@ -35,7 +35,7 @@ YouTube Music secara streaming (tidak mengunduh), dengan antrean dan playlist.
 
 ## 3. Status saat ini
 
-_Terakhir diperbarui: 2026-10-02_
+_Terakhir diperbarui: 2026-10-04_
 
 | Tahap | Isi | Status |
 |---|---|---|
@@ -44,6 +44,7 @@ _Terakhir diperbarui: 2026-10-02_
 | 3 | Restrukturisasi ke paket `mymusic/` + antrean + impor link playlist + playlist tersimpan | ✅ selesai, diterapkan pengguna & berjalan |
 | 4 | Tampilan ala Spotify (lihat di bawah) — dibagi 3 bagian: A fondasi (tema, ikon, widget dasar, model+album, rekomendasi di services), B komponen & halaman (baris_lagu, kartu, halaman_beranda/cari/playlist), C rangka (panel_koleksi, panel_kanan, bilah_atas, bilah_pemutar, jendela_utama; hapus ui/daftar_lagu.py) | ✅ selesai — Bagian A diterapkan pengguna (diperbaiki agent), B & C diterapkan langsung oleh agent atas permintaan pengguna; berjalan & teruji di proyek |
 | 5 | Kenyamanan memutar: acak, ulang (mati/semua/satu), pintasan keyboard, sesi diingat (volume, antrean, posisi, mode, panel), drag & drop antrean, coba ulang otomatis saat URL ditolak | ✅ selesai — diterapkan langsung oleh agent atas pilihan pengguna; 26 pemeriksaan GUI lolos di proyek |
+| 6 | Lirik: tombol 🎤 di bilah pemutar → halaman lirik di tengah (latar warna sampul), lirik bersinkron disorot & digulir otomatis, klik baris = lompat, gulir manual menjeda 4 dtk | ✅ selesai — diterapkan langsung oleh agent atas permintaan pengguna; 15 pemeriksaan GUI lolos di proyek |
 
 **Isi folder saat ini:** struktur pada bagian 4 sudah lengkap (`main.py`, `requirements.txt`, `arsip/`, `mymusic/`), plus `AGENTS.md`, `CLAUDE.md`, `.venv/`. Folder `data/` muncul setelah playlist pertama disimpan.
 
@@ -73,12 +74,14 @@ arsip/                        tahap1_cari.py, tahap2_gui.py (referensi; tidak di
 data/playlist.json            dibuat otomatis saat playlist pertama disimpan
 mymusic/
 ├── config.py                 SEMUA konstanta: path (FILE_PLAYLIST, FILE_SESI), batas, VOLUME_AWAL, LANGKAH_VOLUME,
-│                             LANGKAH_GESER_MS, AKSEN, LEBAR_KOLEKSI/PANEL_KANAN, OPSI_YTDLP
-├── models.py                 Lagu(video_id, judul, artis, album="", durasi, sampul) + .teks .detik; InfoPlaylist
+│                             LANGKAH_GESER_MS, JEDA_IKUTI_LIRIK_MS, AKSEN, LEBAR_KOLEKSI/PANEL_KANAN, OPSI_YTDLP
+├── models.py                 Lagu(video_id, judul, artis, album="", durasi, sampul) + .teks .detik; InfoPlaylist;
+│                             Lirik(baris, waktu ms, sumber) + .bersinkron .indeks_pada(ms) (bisect)
 ├── aset/font/                Plus Jakarta Sans *.ttf (dimuat ui/tema.muat_font, cadangan Segoe UI)
 ├── services/                 TANPA Qt
 │   ├── youtube.py            cari_lagu, ambil_playlist, ambil_rekomendasi_lagu (radio), ambil_playlist_rekomendasi
-│   │                         (get_home), perbesar_sampul, ambil_url_audio, adalah_link, ambil_id_playlist
+│   │                         (get_home), ambil_lirik (get_watch_playlist → id lirik → get_lyrics timestamps=True; None bila tak ada),
+│   │                         perbesar_sampul, ambil_url_audio, adalah_link, ambil_id_playlist
 │   ├── penyimpanan.py        PenyimpananPlaylist (JSON {"nama": [lagu,...]})
 │   └── sesi.py               PenyimpananSesi: data/sesi.json {volume, panel, pemutar: {...}}; rusak/hilang -> {}
 ├── core/
@@ -100,11 +103,13 @@ mymusic/
     ├── halaman_beranda.py    salam, ubin Koleksi, "Karena kamu memutar …", "Playlist rekomendasi", ajakan link
     ├── halaman_cari.py       Hasil teratas + 4 lagu (ringkas) + Lagu lainnya
     ├── halaman_playlist.py   header bergradasi dari warna sampul, tombol aksi, tabel; jenis SAYA / YOUTUBE
+    ├── halaman_lirik.py      HalamanLirik (QScrollArea, latar dilukis di viewport), BarisLirik; properti QSS
+    │                         `keadaan` = lewat/aktif/nanti/biasa; sinyal geser(ms); .video_id = lagu yang ditampilkan
     ├── panel_koleksi.py      panel kiri "Koleksi Kamu" (ItemKoleksi, tanda terpilih & sedang diputar)
     ├── panel_kanan.py        "Sedang diputar" / "Antrean" (BarisAntrean, DaftarGeser = drag & drop urutan)
     ├── bilah_atas.py         logo, tombol Beranda, kotak cari (Enter → sinyal cari)
-    ├── bilah_pemutar.py      3 kolom: lagu | kendali + progres | tombol panel + volume
-    └── jendela_utama.py      merangkai semuanya + navigasi, cari, link, antrean, Koleksi, rekomendasi,
+    ├── bilah_pemutar.py      3 kolom: lagu | kendali + progres | tombol panel, lirik (🎤) + volume
+    └── jendela_utama.py      merangkai semuanya + navigasi, cari, link, antrean, Koleksi, rekomendasi, lirik (_alihkan_lirik/_muat_lirik),
                               pintasan keyboard (_pasang_pintasan), sesi (_pulihkan_sesi / closeEvent)
 ```
 
@@ -156,6 +161,7 @@ tabel bergulir bersama seperti Spotify. Untuk daftar sangat panjang (ribuan lagu
 | `ytmusicapi.search(limit=...)` mengembalikan lebih banyak | perilaku library (mis. 20–30 hasil) | tidak masalah, jangan diandalkan |
 | Log FFmpeg muncul di terminal saat memutar | backend FFmpeg Qt | tidak berbahaya, abaikan |
 | Pintasan keyboard tidak bereaksi saat diuji | QShortcut hanya aktif bila jendela sedang aktif (fokus) | wajar; dalam uji otomatis picu `QShortcut.activated.emit()` |
+| Uji GUI gagal "tanpa lagu" pada percobaan kedua | `closeEvent` menyimpan sesi, jadi run berikutnya memulihkan lagu | hapus `data/` di folder uji; saat menguji kode di proyek, arahkan `PenyimpananSesi.__init__.__defaults__` ke file sementara agar sesi pengguna tidak tertimpa |
 | Uji GUI berhenti setelah `jendela.close()` | Qt keluar saat jendela terakhir ditutup | `app.setQuitOnLastWindowClosed(False)` di skrip uji |
 | Baris lama sempat terlihat bertumpuk setelah daftar diisi ulang | widget yang di-`deleteLater()` masih tampil sampai event loop berjalan | `kosongkan_tata` memanggil `hide()` dulu |
 | `HTTP error 403 Forbidden` sesekali dari googlevideo | YouTube menolak sementara (terlihat setelah banyak permintaan beruntun) | Pemutar meminta URL baru sekali & lanjut dari posisi yang sama; pesan "Gagal memutar" baru muncul bila gagal lagi |
@@ -192,14 +198,13 @@ Contoh link uji: playlist publik `https://www.youtube.com/playlist?list=PL9y1tLe
 
 ## 10. Ide tahap berikutnya (belum dikerjakan)
 
-Unduh untuk offline · lirik (`get_lyrics`) · halaman artis/album · cari album/artis · favorit & riwayat ·
+Unduh untuk offline · halaman artis/album · cari album/artis · favorit & riwayat ·
 jadi .exe (PyInstaller) + ikon tray + tombol media keyboard Windows · tema terang.
 
 | Fitur | File yang diubah / dibuat |
 |---|---|
 | Unduh untuk offline | `services/unduhan.py` (baru, yt-dlp `download=True`), tombol di tab Hasil |
 | Tema | `ui/tema.py` (baru, stylesheet), dipasang di `main.py` |
-| Lirik | fungsi baru di `services/youtube.py` (`get_watch_playlist` → `lyrics` id → `get_lyrics`), panel baru di `ui/` |
 | Cari album/artis | parameter `filter=` di `services/youtube.py`, pilihan di `ui/jendela_utama.py` |
 
 ## 11. Riwayat keputusan
@@ -218,3 +223,5 @@ jadi .exe (PyInstaller) + ikon tray + tombol media keyboard Windows · tema tera
 - **2026-10-02** — Bagian A tahap 4 diterapkan; agent memperbaiki langsung atas permintaan pengguna: indentasi `def run`/`def sedang_memutar`, baris `antrean_berubah.emit()` yang terhapus di `putar_daftar`, dan `ui/ikon.py` yang belum dibuat.
 - **2026-10-02** — Pengguna minta Bagian B & C langsung diterapkan; agent menyalin berkas teruji, menghapus `ui/daftar_lagu.py`, dan menguji di proyek (cari, putar, menu, panel, link playlist, rekomendasi). Tahap 4 selesai. Tombol acak/ulang masih nonaktif (tahap 5).
 - **2026-10-02** — Tahap 5 selesai. Keputusan: acak memindahkan lagu yang diputar ke depan lalu mengacak sisanya (urutan asli disimpan di `_asli` dan dikembalikan saat acak dimatikan); "Putar" tanpa posisi saat acak aktif mulai dari lagu acak; ulang satu ditangani Pemutar saat EndOfMedia (tombol ⏭ tetap pindah lagu); sesi disimpan di `closeEvent` dan dipulihkan tanpa langsung memutar (tombol putar melanjutkan dari posisi terakhir); pintasan meniru Spotify desktop. Pengguna memilih agar agent menerapkan langsung.
+- **2026-10-04** — Proyek dimasukkan ke Git oleh pengguna (dipandu di chat) dan di-push ke GitHub; commit awal `824580c`.
+- **2026-10-04** — Tahap 6 (lirik) selesai. Keputusan: lirik tampil sebagai halaman di tengah (seperti Spotify), bukan mode panel kanan; hanya diambil saat halaman lirik terbuka (hemat permintaan, kurangi risiko 403) dan tidak diambil ulang untuk lagu yang sama; `Lirik` menyeragamkan dua bentuk hasil `get_lyrics` (list LyricLine vs string). Catatan: timestamp lirik dibuat untuk versi audio, jadi bisa meleset di video klip. Pengguna minta agent menerapkan langsung.

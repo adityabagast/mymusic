@@ -41,6 +41,7 @@ _IKON = {
     "simpan": '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
     "not": '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
     "jam": '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    "mikrofon": '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/>',
 }
 
 

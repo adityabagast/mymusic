@@ -6,7 +6,7 @@ import yt_dlp
 from ytmusicapi import YTMusic
 
 from mymusic.config import BATAS_HASIL_CARI, BATAS_LAGU_MIX, BATAS_REKOMENDASI, OPSI_YTDLP
-from mymusic.models import InfoPlaylist, Lagu
+from mymusic.models import InfoPlaylist, Lagu, Lirik
 
 _yt = YTMusic()
 _POLA_UKURAN = re.compile(r"=(w\d+-h\d+|s\d+)")
@@ -60,6 +60,16 @@ def ambil_playlist_rekomendasi():
             if info:
                 hasil.setdefault(info.id, info)
     return list(hasil.values())[:BATAS_REKOMENDASI]
+
+
+def ambil_lirik(video_id):
+    """Lirik sebuah lagu (bertimestamp bila ada), atau None bila YouTube Music tidak punya liriknya."""
+    # Lirik tidak bisa dicari langsung dari video_id: ID liriknya ada di data "watch playlist".
+    id_lirik = _yt.get_watch_playlist(videoId=video_id, limit=1).get("lyrics")
+    if not id_lirik:
+        return None
+    data = _yt.get_lyrics(id_lirik, timestamps=True)
+    return Lirik.dari_ytmusic(data) if data else None
 
 
 def perbesar_sampul(url, ukuran):

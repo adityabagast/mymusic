@@ -1,4 +1,5 @@
 """Bentuk data yang dipakai di seluruh aplikasi."""
+from bisect import bisect_right
 from dataclasses import asdict, dataclass
 
 
@@ -73,3 +74,29 @@ class InfoPlaylist:
             keterangan=data.get("description") or "",
             sampul=_gambar_terbesar(data),
         )
+
+
+@dataclass(frozen=True)
+class Lirik:
+    """Lirik sebuah lagu. `waktu` berisi waktu mulai (ms) tiap baris; kosong bila lirik tidak bersinkron."""
+    baris: tuple = ()
+    waktu: tuple = ()
+    sumber: str = ""
+
+    @classmethod
+    def dari_ytmusic(cls, data):
+        """Mengubah hasil get_lyrics() menjadi Lirik (bertimestamp: list LyricLine, biasa: satu string)."""
+        sumber = (data.get("source") or "").removeprefix("Source: ")
+        if data.get("hasTimestamps"):
+            return cls(baris=tuple(baris.text or "♪" for baris in data["lyrics"]),
+                       waktu=tuple(baris.start_time for baris in data["lyrics"]),
+                       sumber=sumber)
+        return cls(baris=tuple((data.get("lyrics") or "").splitlines()), sumber=sumber)
+
+    @property
+    def bersinkron(self):
+        return bool(self.waktu)
+
+    def indeks_pada(self, milidetik):
+        """Indeks baris yang sedang dinyanyikan, atau -1 bila belum sampai baris pertama."""
+        return bisect_right(self.waktu, milidetik) - 1

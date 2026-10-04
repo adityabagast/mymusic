@@ -51,6 +51,11 @@ def stylesheet(font):
     QLabel[peran="label"] {{ font-size: 12px; font-weight: 700; color: {TEKS_REDUP}; }}
     QLabel[peran="info"] {{ font-size: 14px; color: #E5E5E5; }}
     QLabel[aktif="true"] {{ color: {AKSEN}; }}
+    QLabel[peran="lirik"] {{ font-size: 28px; font-weight: 800; }}
+    QLabel[peran="lirik"][keadaan="lewat"] {{ color: rgba(255,255,255,0.6); }}
+    QLabel[peran="lirik"][keadaan="nanti"] {{ color: rgba(0,0,0,0.55); }}
+    QLabel[peran="lirik"][keadaan="lewat"]:hover, QLabel[peran="lirik"][keadaan="nanti"]:hover {{
+        color: {TEKS}; }}
 
     QPushButton {{ border: none; background: transparent; padding: 0; }}
     QPushButton[jenis="ikon"] {{ border-radius: 6px; }}

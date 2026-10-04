@@ -15,6 +15,7 @@ BATAS_REKOMENDASI = 8  # jumlah kartu per rak di Beranda
 VOLUME_AWAL = 70  # 0 - 100
 LANGKAH_VOLUME = 10  # Ctrl+↑ / Ctrl+↓
 LANGKAH_GESER_MS = 5000  # Shift+→ / Shift+←
+JEDA_IKUTI_LIRIK_MS = 4000  # setelah lirik digulir manual, berhenti mengikuti lagu selama ini
 
 # Tampilan
 AKSEN = "#F5B841"  # pilihan lain dari prototipe: #FF7A59, #2DD4BF, #A78BFA
