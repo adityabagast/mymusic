@@ -1,8 +1,9 @@
-"""Kartu, ubin, dan rak untuk halaman Beranda & Cari."""
+"""Kartu, ubin, dan rak untuk halaman Beranda, Cari, dan Artis."""
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget
 
 from mymusic.config import AKSEN
+from mymusic.ui.navigasi import navigasi
 from mymusic.ui.widgets import LabelPotong, Sampul, TombolBulat, atur_properti, label
 
 
@@ -36,10 +37,10 @@ class _BisaDiklik(QFrame):
 class Kartu(_BisaDiklik):
     LEBAR = 168
 
-    def __init__(self, judul, keterangan, url_sampul):
+    def __init__(self, judul, keterangan, url_sampul, bulat=False):
         super().__init__()
         self.setFixedWidth(self.LEBAR)
-        sampul = Sampul(self.LEBAR - 24, sudut=6)
+        sampul = Sampul(self.LEBAR - 24, sudut=(self.LEBAR - 24) // 2 if bulat else 6)  # bulat = foto artis
         sampul.atur(url_sampul)
         self._siapkan("kartu", TombolBulat(44, AKSEN, f"Putar {judul}"))
         self.tombol_putar.setParent(sampul)  # melayang di pojok kanan bawah sampul
@@ -105,6 +106,40 @@ class RakKartu(QWidget):
             kartu.setVisible(i < muat)
 
 
+def kartu_album(info):
+    """Kartu InfoAlbum: klik membuka halaman album, tombol ▶ langsung memutarnya."""
+    kartu = Kartu(info.judul, info.keterangan or "Album", info.sampul)
+    kartu.klik.connect(lambda: navigasi().buka_album.emit(info.id))
+    kartu.putar.connect(lambda: navigasi().putar_album.emit(info.id))
+    return kartu
+
+
+def kartu_artis(info):
+    """Kartu InfoArtis (foto bulat): klik membuka halaman artis, tombol ▶ memutar lagu populernya."""
+    kartu = Kartu(info.nama, "Artis", info.sampul, bulat=True)
+    kartu.klik.connect(lambda: navigasi().buka_artis.emit(info.id))
+    kartu.putar.connect(lambda: navigasi().putar_artis.emit(info.id))
+    return kartu
+
+
+class BagianKartu(QWidget):
+    """Judul bagian + satu rak kartu. Tersembunyi selama kosong."""
+
+    def __init__(self, judul):
+        super().__init__()
+        self.rak = RakKartu()
+        tata = QVBoxLayout(self)
+        tata.setContentsMargins(0, 28, 0, 0)
+        tata.setSpacing(6)
+        tata.addWidget(label(judul, "judul-bagian"))
+        tata.addWidget(self.rak)
+        self.hide()
+
+    def isi(self, daftar_kartu):
+        self.rak.isi(daftar_kartu)
+        self.setVisible(bool(daftar_kartu))
+
+
 class KartuTeratas(_BisaDiklik):
     """Kartu besar "Hasil teratas" di halaman Cari."""
 
@@ -124,10 +159,11 @@ class KartuTeratas(_BisaDiklik):
         tata.addWidget(self.label_judul)
         tata.addWidget(self.label_keterangan)
 
-    def atur(self, lagu):
-        self.sampul.atur(lagu.sampul)
-        self.label_judul.setText(lagu.judul)
-        self.label_keterangan.setText(f"Lagu · {lagu.artis}")
+    def atur(self, judul, keterangan, url_sampul, bulat=False):
+        self.sampul.atur_sudut(self.sampul.width() // 2 if bulat else 6)
+        self.sampul.atur(url_sampul)
+        self.label_judul.setText(judul)
+        self.label_keterangan.setText(keterangan)
 
     def atur_aktif(self, aktif):
         atur_properti(self.label_judul, "aktif", aktif)

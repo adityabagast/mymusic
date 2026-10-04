@@ -46,6 +46,7 @@ _Terakhir diperbarui: 2026-10-04_
 | 5 | Kenyamanan memutar: acak, ulang (mati/semua/satu), pintasan keyboard, sesi diingat (volume, antrean, posisi, mode, panel), drag & drop antrean, coba ulang otomatis saat URL ditolak | ✅ selesai — diterapkan langsung oleh agent atas pilihan pengguna; 26 pemeriksaan GUI lolos di proyek |
 | 6 | Lirik: tombol 🎤 di bilah pemutar → halaman lirik di tengah (latar warna sampul), lirik bersinkron disorot & digulir otomatis, klik baris = lompat, gulir manual menjeda 4 dtk | ✅ selesai — diterapkan langsung oleh agent atas permintaan pengguna; 15 pemeriksaan GUI lolos di proyek |
 | 7 | Favorit & riwayat: ♥ di bilah pemutar, panel Sedang diputar, setiap baris lagu, menu ⋯, Alt+Shift+B; "Lagu yang Disukai" di atas Koleksi Kamu & ubin Beranda (sampul gradasi aksen); rak Beranda "Baru diputar" dan "Karena kamu menyukai …" (radio dari 1 favorit acak saat aplikasi dibuka) | ✅ selesai — diterapkan langsung oleh agent atas permintaan pengguna; 32 pemeriksaan GUI + uji data lolos di proyek |
+| 8 | Jelajah: halaman artis (banner, populer, album, single, artis serupa) & album (pakai HalamanPlaylist jenis ALBUM); nama artis/album bisa diklik di mana saja (LabelTautan); Cari menampilkan hasil teratas artis/album + rak Artis & Album; tombol ← → + Alt+←/→ + tombol samping mouse; ▶ di kartu artis/album memutar tanpa pindah halaman | ✅ selesai — diterapkan langsung oleh agent atas permintaan pengguna; 34 pemeriksaan GUI + uji data (API asli) lolos di proyek, regresi tahap 6 & 7 lolos |
 
 **Isi folder saat ini:** struktur pada bagian 4 sudah lengkap (`main.py`, `requirements.txt`, `arsip/`, `mymusic/`), plus `AGENTS.md`, `CLAUDE.md`, `.venv/`. Folder `data/` (playlist.json, sesi.json, favorit.json, riwayat.json) dibuat otomatis dan tidak ikut ke Git.
 
@@ -66,7 +67,7 @@ Bila pengguna melaporkan error setelah menyalin kode: bandingkan file pengguna d
 diberikan (salah ketik nama variabel pernah terjadi: `BATAS_HASIL` vs `BATAS_HASIL_CARI`), lalu
 beri tahu baris yang harus diperbaiki — jangan menimpa kode pengguna tanpa izin.
 
-## 4. Struktur proyek (setelah tahap 7)
+## 4. Struktur proyek (setelah tahap 8)
 
 ```
 main.py                       titik masuk: .venv\Scripts\python.exe main.py (memasang font + QSS)
@@ -76,11 +77,12 @@ data/                         playlist.json, sesi.json, favorit.json, riwayat.js
 mymusic/
 ├── config.py                 SEMUA konstanta: path (FILE_PLAYLIST/SESI/FAVORIT/RIWAYAT), batas (BATAS_RIWAYAT=50), NAMA_LAGU_DISUKAI, VOLUME_AWAL, LANGKAH_VOLUME,
 │                             LANGKAH_GESER_MS, JEDA_IKUTI_LIRIK_MS, AKSEN, LEBAR_KOLEKSI/PANEL_KANAN, OPSI_YTDLP
-├── models.py                 Lagu(video_id, judul, artis, album="", durasi, sampul) + .teks .detik; InfoPlaylist;
+├── models.py                 Lagu(video_id, judul, artis, album, durasi, sampul, daftar_artis=((nama,id),...), id_album)
+│                             + .teks .detik; InfoPlaylist; InfoArtis; InfoAlbum; Artis; Album; HasilCari;
 │                             Lirik(baris, waktu ms, sumber) + .bersinkron .indeks_pada(ms) (bisect)
 ├── aset/font/                Plus Jakarta Sans *.ttf (dimuat ui/tema.muat_font, cadangan Segoe UI)
 ├── services/                 TANPA Qt
-│   ├── youtube.py            cari_lagu, ambil_playlist, ambil_rekomendasi_lagu (radio), ambil_playlist_rekomendasi
+│   ├── youtube.py            cari (HasilCari, @lru_cache), ambil_artis, ambil_album (@lru_cache), cari_lagu, ambil_playlist, ambil_rekomendasi_lagu (radio), ambil_playlist_rekomendasi
 │   │                         (get_home), ambil_lirik (get_watch_playlist → id lirik → get_lyrics timestamps=True; None bila tak ada),
 │   │                         perbesar_sampul, ambil_url_audio, adalah_link, ambil_id_playlist
 │   ├── penyimpanan.py        PenyimpananPlaylist (JSON {"nama": [lagu,...]})
@@ -100,29 +102,36 @@ mymusic/
     ├── tema.py               warna (LATAR, PANEL, HOVER, ...), muat_font(), stylesheet(font) — QSS memakai
     │                         properti `peran` (label) dan `jenis` (tombol), plus objectName (#baris, #kartu, ...)
     ├── ikon.py               ikon SVG garis (dict _IKON) → ikon()/pixmap_ikon() via QSvgRenderer
-    ├── widgets.py            LabelPotong, TombolIkon, TombolSuka (♥ yang ikut favorit().berubah), TombolBulat,
-    │                         Sampul (+ SAMPUL_SUKA = "URL" khusus → gambar_sampul_suka), LatarGradasi, PanelBulat, Toast,
+    ├── widgets.py            LabelPotong, LabelTautan (nama artis/album yang bisa diklik → navigasi()), tautan_artis,
+    │                         TombolIkon, TombolSuka (♥ yang ikut favorit().berubah), TombolBulat,
+    │                         Sampul (+ SAMPUL_SUKA → gambar_sampul_suka, atur_sudut), LatarGradasi, PanelBulat, Toast,
     │                         atur_properti, label, warna_dominan, campur_warna, kosongkan_tata
     ├── baris_lagu.py         BarisLagu (# / sampul+judul / album / ♥ / durasi / ⋯, mode ringkas), KepalaTabel,
     │                         DaftarLagu(isi, tandai), tampilkan_menu_lagu(induk, posisi, lagu, tambah, sisipkan)
-    ├── kartu.py              Kartu, Ubin, RakKartu (sembunyikan kartu yang tak muat), KartuTeratas
+    ├── kartu.py              Kartu(bulat=), Ubin, RakKartu (sembunyikan kartu yang tak muat), KartuTeratas.atur(judul, ket,
+    │                         sampul, bulat), BagianKartu, kartu_album/kartu_artis (klik → navigasi())
+    ├── navigasi.py           Navigasi + navigasi(): sinyal buka_artis/putar_artis/buka_album/putar_album (satu objek)
     ├── halaman_beranda.py    salam, ubin Koleksi, BagianLagu: "Baru diputar" / "Karena kamu memutar …" /
     │                         "Karena kamu menyukai …" (sinyal putar_lagu(daftar, i, sumber)), "Playlist rekomendasi", ajakan link
-    ├── halaman_cari.py       Hasil teratas + 4 lagu (ringkas) + Lagu lainnya
-    ├── halaman_playlist.py   header bergradasi dari warna sampul, tombol aksi, tabel; jenis SAYA / YOUTUBE / SUKA
+    ├── halaman_cari.py       Hasil teratas (artis/album/lagu) + 4 lagu (ringkas) + rak Artis & Album + Lagu lainnya
+    ├── halaman_playlist.py   header bergradasi dari warna sampul, tombol aksi, tabel; jenis SAYA / YOUTUBE / SUKA / ALBUM
+    │                         (tampilkan_album: nama artis = tautan rich text → linkActivated; kolom Album disembunyikan)
+    ├── halaman_artis.py      HalamanArtis: KepalaArtis (banner cover-fit + nama), putar/acak, Populer, rak album/single/serupa
     ├── halaman_lirik.py      HalamanLirik (QScrollArea, latar dilukis di viewport), BarisLirik; properti QSS
     │                         `keadaan` = lewat/aktif/nanti/biasa; sinyal geser(ms); .video_id = lagu yang ditampilkan
     ├── panel_koleksi.py      panel kiri "Koleksi Kamu": item_suka tetap di atas + ItemKoleksi playlist (terpilih & diputar)
     ├── panel_kanan.py        "Sedang diputar" (+ ♥) / "Antrean" (BarisAntrean, DaftarGeser = drag & drop urutan)
-    ├── bilah_atas.py         logo, tombol Beranda, kotak cari (Enter → sinyal cari)
+    ├── bilah_atas.py         logo, tombol ← → (atur_navigasi), tombol Beranda, kotak cari (Enter → sinyal cari)
     ├── bilah_pemutar.py      3 kolom: lagu + ♥ (menempel di belakang judul) | kendali + progres | tombol panel, lirik (🎤) + volume
     └── jendela_utama.py      merangkai semuanya + navigasi, cari, link, antrean, Koleksi, rekomendasi, lirik (_alihkan_lirik/_muat_lirik),
                               favorit (_favorit_berubah, _muat_mirip_suka), riwayat (self.riwayat, dicatat di _lagu_berubah),
-                              pintasan keyboard (_pasang_pintasan), sesi (_pulihkan_sesi / closeEvent)
+                              artis & album (buka_/putar_), riwayat navigasi ← → (_jejak, _pergi, _buka_lokasi, mundur/maju;
+                              semua pindah halaman lewat _pergi), pintasan (_pasang_pintasan + eventFilter tombol mouse),
+                              sesi (_pulihkan_sesi / closeEvent)
 ```
 
 Pintasan: Spasi putar/jeda · Ctrl+→/← berikutnya/sebelumnya · Shift+→/← geser 5 detik · Ctrl+↑/↓ volume ·
-Ctrl+F kotak cari · Ctrl+S acak · Ctrl+R mode ulang · Alt+Shift+B suka/batal suka lagu yang diputar (meniru Spotify desktop).
+Ctrl+F kotak cari · Ctrl+S acak · Ctrl+R mode ulang · Alt+Shift+B suka/batal suka lagu yang diputar · Alt+←/→ (dan tombol samping mouse) kembali/maju (meniru Spotify desktop).
 
 Signal milik `Pemutar`: `lagu_berubah(object)`, `antrean_berubah()`, `mode_berubah()`, `status_berubah(bool)`,
 `posisi_berubah(int)`, `durasi_berubah(int)`, `pesan(str)`. Tampilan tidak memakai status bar lagi:
@@ -175,6 +184,11 @@ tabel bergulir bersama seperti Spotify. Untuk daftar sangat panjang (ribuan lagu
 | Stretch di belakang widget "mencuri" separuh ruang | stretch factor sama-sama 1 dibagi rata | `addStretch()` (stretch 0) hanya mengambil sisa ruang yang tidak dipakai |
 | Uji menu ⋯ menggantung: langkah uji berikutnya berjalan di dalam `menu.exec()` | `QAction.trigger()` tidak menutup QMenu | dalam uji: `menu.setActiveAction(aksi)` lalu `QTest.keyClick(menu, Qt.Key_Return)` |
 | Uji tahap 7 menyentuh data pengguna | favorit/riwayat/sesi/playlist punya path bawaan di `data/` | sebelum impor modul lain: ubah `mymusic.config.FILE_*` ke folder sementara (lihat skrip uji tahap 7) |
+| `Lagu.dari_ytmusic` crash untuk lagu dari `get_album` | di sana `album` berupa teks (nama), bukan dict; `thumbnails` = None | `isinstance(album, str)`; `Album.dari_ytmusic` mengisi sampul/id album dari albumnya |
+| Lagu populer di `get_artist` tanpa durasi | ytmusicapi tidak menyertakannya | durasi "?" ditampilkan kosong di BarisLagu |
+| Hasil teratas artis tidak punya `browseId` | bentuk data "Top result" berbeda | id & nama diambil dari `artists[0]` (InfoArtis.dari_ytmusic) |
+| `QTest.mouseMove` tidak memicu `mouseMoveEvent` (uji sorot) | di Windows hanya memindahkan kursor | kirim `QMouseEvent(QEvent.MouseMove, ...)` dengan `QApplication.sendEvent` |
+| Uji lama gagal "kembali ke halaman sebelumnya" | `tampilkan_halaman()` langsung tidak tercatat di riwayat ← → | di uji & kode, pindah halaman lewat `_pergi()` / `mulai_cari()` / `buka_*()` |
 | Uji GUI berhenti setelah `jendela.close()` | Qt keluar saat jendela terakhir ditutup | `app.setQuitOnLastWindowClosed(False)` di skrip uji |
 | Baris lama sempat terlihat bertumpuk setelah daftar diisi ulang | widget yang di-`deleteLater()` masih tampil sampai event loop berjalan | `kosongkan_tata` memanggil `hide()` dulu |
 | `HTTP error 403 Forbidden` sesekali dari googlevideo | YouTube menolak sementara (terlihat setelah banyak permintaan beruntun) | Pemutar meminta URL baru sekali & lanjut dari posisi yang sama; pesan "Gagal memutar" baru muncul bila gagal lagi |
@@ -209,16 +223,15 @@ Tidak ada test suite. Pola yang dipakai dan terbukti jalan:
 Contoh link uji: playlist publik `https://www.youtube.com/playlist?list=PL9y1tLe074BDmrM7DO1nBfu6265mRJ6DF`
 (121 lagu), Mix `https://music.youtube.com/watch?v=YKK5_OQiEa4&list=RDAMVMYKK5_OQiEa4`.
 
-## 10. Ide tahap berikutnya (belum dikerjakan)
+## 10. Rencana tahap berikutnya (belum dikerjakan)
 
-Unduh untuk offline · halaman artis/album · cari album/artis ·
-jadi .exe (PyInstaller) + ikon tray + tombol media keyboard Windows · tema terang.
+Disepakati dengan pengguna (2026-10-04): **.exe dibuat di tahap 10, sebagai tahap terakhir** fitur inti.
 
-| Fitur | File yang diubah / dibuat |
-|---|---|
-| Unduh untuk offline | `services/unduhan.py` (baru, yt-dlp `download=True`), tombol di tab Hasil |
-| Tema | `ui/tema.py` (baru, stylesheet), dipasang di `main.py` |
-| Cari album/artis | parameter `filter=` di `services/youtube.py`, pilihan di `ui/jendela_utama.py` |
+| Tahap | Isi | Catatan |
+|---|---|---|
+| 9 | Ikon tray + tombol media keyboard (Play/Next/Prev) + kontrol di overlay media Windows; ikon aplikasi (.ico) | perilaku khas Windows ini sebaiknya ada sebelum dibungkus .exe |
+| 10 | Jadi .exe (PyInstaller) + cara memperbarui yt-dlp | yt-dlp ikut "terkunci" di dalam .exe → perlu jalan keluar saat YouTube berubah (mis. build ulang, atau yt-dlp diperbarui terpisah) |
+| nanti | Unduh untuk offline (`services/unduhan.py`, yt-dlp `download=True`) · tema terang & pilihan aksen (`ui/tema.py`) · "Tampilkan semua" lagu artis (browseId `songs` → playlist) | bisa sebelum/sesudah .exe |
 
 ## 11. Riwayat keputusan
 
@@ -239,3 +252,4 @@ jadi .exe (PyInstaller) + ikon tray + tombol media keyboard Windows · tema tera
 - **2026-10-04** — Proyek dimasukkan ke Git oleh pengguna (dipandu di chat) dan di-push ke GitHub; commit awal `824580c`.
 - **2026-10-04** — Tahap 6 (lirik) selesai. Keputusan: lirik tampil sebagai halaman di tengah (seperti Spotify), bukan mode panel kanan; hanya diambil saat halaman lirik terbuka (hemat permintaan, kurangi risiko 403) dan tidak diambil ulang untuk lagu yang sama; `Lirik` menyeragamkan dua bentuk hasil `get_lyrics` (list LyricLine vs string). Catatan: timestamp lirik dibuat untuk versi audio, jadi bisa meleset di video klip. Pengguna minta agent menerapkan langsung.
 - **2026-10-04** — Tahap 7 (favorit & riwayat) selesai. Keputusan: `Favorit` di core sebagai satu objek global `favorit()` (pola `pemuat_sampul()`) agar setiap `TombolSuka` bisa membaca & mendengarkan tanpa diteruskan lewat banyak konstruktor; sinyal `berubah(lagu, disukai)` membuat setiap tombol hanya memperbarui dirinya bila video_id cocok. Favorit & riwayat memakai satu kelas `DaftarTersimpan` (riwayat dibatasi 50, dicatat setiap `lagu_berubah`). "Lagu yang Disukai" diperlakukan sebagai playlist berjenis SUKA dengan nama khusus (`NAMA_LAGU_DISUKAI`, ditolak sebagai nama playlist baru) dan sampul `SAMPUL_SUKA` agar pola (nama, keterangan, url) di Koleksi/Beranda tetap sama. Rak Beranda dijadikan `BagianLagu` + satu sinyal `putar_lagu(daftar, i, sumber)` (menggantikan `putar_rekomendasi`). Sekalian memperbaiki kolom kepala tabel yang bergeser sejak tahap 4.
+- **2026-10-04** — Tahap 8 (artis & album) selesai. Keputusan: `Lagu` mendapat `daftar_artis` ((nama, id), ...) & `id_album` (data lama tetap terbaca, tampil sebagai teks biasa); nama artis/album jadi tautan lewat `LabelTautan` yang menggambar & memotong teksnya sendiri; perpindahan halaman dari widget mana pun lewat satu objek `navigasi()` (pola `favorit()`); riwayat ← → berupa daftar "lokasi" (tuple) dan SEMUA perpindahan halaman lewat `_pergi()`; `cari`/`ambil_artis`/`ambil_album` memakai `lru_cache` (aman karena dataclass frozen berisi tuple) agar ← → instan; ▶ di kartu artis/album memutar tanpa pindah halaman (seperti Spotify); halaman album memakai ulang HalamanPlaylist. Rencana: tahap 9 tray + tombol media, tahap 10 .exe.

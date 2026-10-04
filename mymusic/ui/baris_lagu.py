@@ -6,7 +6,9 @@ from mymusic.config import AKSEN
 from mymusic.core.favorit import favorit
 from mymusic.ui.ikon import ikon, pixmap_ikon
 from mymusic.ui.tema import TEKS, TEKS_REDUP
-from mymusic.ui.widgets import LabelPotong, Sampul, TombolIkon, TombolSuka, atur_properti, label
+from mymusic.ui.widgets import (
+    LabelPotong, LabelTautan, Sampul, TombolIkon, TombolSuka, atur_properti, label, tautan_artis,
+)
 
 LEBAR_NOMOR, LEBAR_SUKA, LEBAR_DURASI, LEBAR_TITIK, JARAK = 40, 32, 56, 32, 16
 
@@ -74,7 +76,9 @@ class BarisLagu(QFrame):
         teks.setSpacing(2)
         teks.addStretch()
         teks.addWidget(self.label_judul)
-        teks.addWidget(LabelPotong(lagu.artis or "—", "kecil"))
+        label_artis = LabelTautan("kecil", "artis")
+        label_artis.atur(tautan_artis(lagu))
+        teks.addWidget(label_artis)
         teks.addStretch()
         blok_judul = QWidget()
         blok_judul.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
@@ -90,7 +94,7 @@ class BarisLagu(QFrame):
         self.tombol_suka.setSizePolicy(kebijakan)
         favorit().berubah.connect(self._favorit_berubah)
 
-        durasi = label(lagu.durasi, "kecil")
+        durasi = label("" if lagu.durasi == "?" else lagu.durasi, "kecil")  # mis. lagu populer artis tanpa durasi
         durasi.setFixedWidth(LEBAR_DURASI)
         durasi.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
@@ -108,7 +112,9 @@ class BarisLagu(QFrame):
             tata.addWidget(kolom_nomor)
         tata.addWidget(blok_judul, 4)
         if tampil_album:
-            tata.addWidget(LabelPotong(lagu.album, "kecil"), 3)
+            label_album = LabelTautan("kecil", "album")
+            label_album.atur([(lagu.album, lagu.id_album)])
+            tata.addWidget(label_album, 3)
         tata.addWidget(self.tombol_suka)
         tata.addWidget(durasi)
         tata.addWidget(self.tombol_titik)
@@ -181,8 +187,9 @@ class KepalaTabel(QFrame):
         pagar.setAlignment(Qt.AlignCenter)
         tata.addWidget(pagar)
         tata.addWidget(LabelPotong("Judul", "label"), 4)
-        if tampil_album:
-            tata.addWidget(LabelPotong("Album", "label"), 3)
+        self.label_album = LabelPotong("Album", "label")
+        self.label_album.setVisible(tampil_album)
+        tata.addWidget(self.label_album, 3)
         jam = QLabel()
         jam.setPixmap(pixmap_ikon("jam", TEKS_REDUP, 16))
         jam.setFixedWidth(LEBAR_DURASI)
@@ -205,9 +212,17 @@ class DaftarLagu(QWidget):
         self._tata = QVBoxLayout(self)
         self._tata.setContentsMargins(0, 0, 0, 0)
         self._tata.setSpacing(0)
+        self._kepala = None
         if kepala:
-            self._tata.addWidget(KepalaTabel(tampil_album))
+            self._kepala = KepalaTabel(tampil_album)
+            self._tata.addWidget(self._kepala)
             self._tata.addSpacing(8)
+
+    def atur_tampil_album(self, tampil):
+        """Kolom Album disembunyikan di halaman album (semua lagunya dari album yang sama). Berlaku saat isi()."""
+        self._tampil_album = tampil
+        if self._kepala:
+            self._kepala.label_album.setVisible(tampil)
 
     def isi(self, daftar_lagu, nomor_awal=1, lagu_aktif=None):
         for baris in self._baris:

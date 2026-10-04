@@ -6,7 +6,9 @@ from mymusic.config import AKSEN, VOLUME_AWAL
 from mymusic.core.antrean import ULANG_MATI, ULANG_SATU
 from mymusic.ui.ikon import pixmap_ikon
 from mymusic.ui.tema import TEKS, TEKS_REDUP
-from mymusic.ui.widgets import LabelPotong, Sampul, TombolBulat, TombolIkon, TombolSuka, label
+from mymusic.ui.widgets import (
+    LabelPotong, LabelTautan, Sampul, TombolBulat, TombolIkon, TombolSuka, label, tautan_artis,
+)
 
 
 def format_waktu(ms):
@@ -31,7 +33,7 @@ class BilahPemutar(QWidget):
         # Kiri: sampul + judul + artis
         self.sampul = Sampul(56)
         self.label_judul = LabelPotong("", "judul-kecil")
-        self.label_artis = LabelPotong("", "kecil")
+        self.label_artis = LabelTautan("kecil", "artis")
         self.label_artis.setStyleSheet("font-size: 12px;")
         teks = QVBoxLayout()
         teks.setSpacing(2)
@@ -157,7 +159,7 @@ class BilahPemutar(QWidget):
         self.sampul.setVisible(lagu is not None)
         self.sampul.atur(lagu.sampul if lagu else "")
         self.label_judul.setText(lagu.judul if lagu else "")
-        self.label_artis.setText(lagu.artis if lagu else "")
+        self.label_artis.atur(tautan_artis(lagu) if lagu else [])
         # Teks tidak dibiarkan melebar agar ♥ menempel di belakang judul, seperti Spotify. Kedua label diberi
         # batas yang sama (yang terlebar), karena kolom teks ikut batas terkecil dari isinya.
         labels = (self.label_judul, self.label_artis)

@@ -1,8 +1,11 @@
 """Jendela utama: merangkai bilah atas, Koleksi, halaman tengah, panel kanan, dan bilah pemutar."""
 import random
 
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QHBoxLayout, QInputDialog, QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication, QHBoxLayout, QInputDialog, QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget,
+)
 
 from mymusic.config import (
     BATAS_RIWAYAT, FILE_RIWAYAT, LANGKAH_GESER_MS, LANGKAH_VOLUME, NAMA_APLIKASI, NAMA_LAGU_DISUKAI, VOLUME_AWAL,
@@ -14,15 +17,17 @@ from mymusic.services.daftar_tersimpan import DaftarTersimpan
 from mymusic.services.penyimpanan import PenyimpananPlaylist
 from mymusic.services.sesi import PenyimpananSesi
 from mymusic.services.youtube import (
-    adalah_link, ambil_id_playlist, ambil_lirik, ambil_playlist, ambil_playlist_rekomendasi, ambil_rekomendasi_lagu,
-    cari_lagu,
+    adalah_link, ambil_album, ambil_artis, ambil_id_playlist, ambil_lirik, ambil_playlist, ambil_playlist_rekomendasi,
+    ambil_rekomendasi_lagu, cari,
 )
 from mymusic.ui.bilah_atas import BilahAtas
 from mymusic.ui.bilah_pemutar import BilahPemutar
+from mymusic.ui.halaman_artis import HalamanArtis
 from mymusic.ui.halaman_beranda import HalamanBeranda
 from mymusic.ui.halaman_cari import HalamanCari
 from mymusic.ui.halaman_lirik import HalamanLirik
-from mymusic.ui.halaman_playlist import SAYA, SUKA, YOUTUBE, HalamanPlaylist
+from mymusic.ui.halaman_playlist import ALBUM, SAYA, SUKA, YOUTUBE, HalamanPlaylist
+from mymusic.ui.navigasi import navigasi
 from mymusic.ui.panel_kanan import DIPUTAR, PanelKanan
 from mymusic.ui.panel_koleksi import PanelKoleksi
 from mymusic.ui.widgets import SAMPUL_SUKA, PanelBulat, Toast
@@ -44,7 +49,9 @@ class JendelaUtama(QMainWindow):
         self.isi_playlist = []  # lagu yang tampil di halaman playlist
         self._nomor_permintaan = 0  # untuk mengabaikan hasil cari/playlist yang sudah basi
         self._id_rekomendasi = None
-        self._halaman_sebelum_lirik = None
+        # Riwayat navigasi untuk tombol ← →, seperti browser: daftar "lokasi" + posisi yang sedang dibuka.
+        self._jejak = [("beranda",)]
+        self._posisi_jejak = 0
 
         self._buat_tampilan()
         self._sambungkan_sinyal()
@@ -66,8 +73,9 @@ class JendelaUtama(QMainWindow):
         self.halaman_cari = HalamanCari()
         self.halaman_playlist = HalamanPlaylist()
         self.halaman_lirik = HalamanLirik()
+        self.halaman_artis = HalamanArtis()
         self.tumpukan = QStackedWidget()
-        for halaman in (self.beranda, self.halaman_cari, self.halaman_playlist, self.halaman_lirik):
+        for halaman in (self.beranda, self.halaman_cari, self.halaman_playlist, self.halaman_lirik, self.halaman_artis):
             self.tumpukan.addWidget(halaman)
         pusat = PanelBulat()
         tata_pusat = QVBoxLayout(pusat)
@@ -95,7 +103,15 @@ class JendelaUtama(QMainWindow):
 
     def _sambungkan_sinyal(self):
         self.bilah_atas.cari.connect(self.mulai_cari)
-        self.bilah_atas.beranda.connect(lambda: self.tampilkan_halaman(self.beranda))
+        self.bilah_atas.beranda.connect(lambda: self._pergi(("beranda",)))
+        self.bilah_atas.mundur.connect(self.mundur)
+        self.bilah_atas.maju.connect(self.maju)
+
+        n = navigasi()
+        n.buka_artis.connect(self.buka_artis)
+        n.putar_artis.connect(self.putar_artis)
+        n.buka_album.connect(self.buka_album)
+        n.putar_album.connect(self.putar_album)
 
         self.koleksi.buka.connect(self.buka_playlist_saya)
         self.koleksi.putar.connect(self.putar_playlist_saya)
@@ -124,6 +140,13 @@ class JendelaUtama(QMainWindow):
         p.hapus.connect(self.hapus_playlist_saya)
         p.acak.connect(lambda: self.pemutar.atur_acak(not self.pemutar.antrean.acak))
 
+        a = self.halaman_artis
+        a.putar.connect(lambda i: self.pemutar.putar_daftar(list(a.artis.lagu), i, a.artis.nama))
+        a.putar_jeda.connect(self.klik_putar_artis)
+        a.acak.connect(lambda: self.pemutar.atur_acak(not self.pemutar.antrean.acak))
+        a.tambah.connect(self.tambah_ke_antrean)
+        a.sisipkan.connect(self.sisipkan_ke_antrean)
+
         self.panel_kanan.tutup.connect(lambda: self.tampilkan_panel(None))
         self.panel_kanan.simpan_antrean.connect(self.simpan_antrean)
         self.bilah_pemutar.panel_diminta.connect(self._alihkan_panel)
@@ -132,8 +155,8 @@ class JendelaUtama(QMainWindow):
         self.pemutar.posisi_berubah.connect(self.halaman_lirik.atur_posisi)
 
         self.pemutar.lagu_berubah.connect(self._lagu_berubah)
-        self.pemutar.mode_berubah.connect(lambda: self.halaman_playlist.atur_acak(self.pemutar.antrean.acak))
-        self.pemutar.status_berubah.connect(lambda _: self._segarkan_tombol_playlist())
+        self.pemutar.mode_berubah.connect(self._mode_berubah)
+        self.pemutar.status_berubah.connect(lambda _: self._segarkan_tombol_putar())
         self.pemutar.pesan.connect(lambda pesan: pesan.startswith("Gagal") and self.toast.tampilkan(pesan))
         favorit().berubah.connect(self._favorit_berubah)
 
@@ -152,9 +175,19 @@ class JendelaUtama(QMainWindow):
             "Ctrl+S": lambda: p.atur_acak(not p.antrean.acak),
             "Ctrl+R": p.ganti_mode_ulang,
             "Alt+Shift+B": lambda: p.antrean.sekarang and favorit().alihkan(p.antrean.sekarang),
+            "Alt+Left": self.mundur,
+            "Alt+Right": self.maju,
         }
         for tombol, aksi in pintasan.items():
             QShortcut(QKeySequence(tombol), self).activated.connect(aksi)
+        QApplication.instance().installEventFilter(self)  # tombol samping mouse, lihat eventFilter()
+
+    def eventFilter(self, objek, event):
+        # Tombol samping mouse (Back/Forward) berfungsi di mana pun di dalam jendela, seperti di browser.
+        if event.type() == QEvent.MouseButtonPress and event.button() in (Qt.BackButton, Qt.ForwardButton):
+            (self.mundur if event.button() == Qt.BackButton else self.maju)()
+            return True
+        return super().eventFilter(objek, event)
 
     def _ubah_volume(self, selisih):
         slider = self.bilah_pemutar.slider_volume
@@ -195,12 +228,49 @@ class JendelaUtama(QMainWindow):
     def _alihkan_panel(self, mode):
         self.tampilkan_panel(None if self.panel_kanan.mode() == mode else mode)
 
+    # ---------- navigasi (← →) ----------
+
+    def _pergi(self, lokasi, **opsi):
+        """Membuka lokasi baru & mencatatnya. Riwayat "maju" dibuang, sama seperti di browser."""
+        if lokasi != self._jejak[self._posisi_jejak]:
+            del self._jejak[self._posisi_jejak + 1:]
+            self._jejak.append(lokasi)
+            self._posisi_jejak += 1
+        self._buka_lokasi(lokasi, **opsi)
+
+    def mundur(self):
+        if self._posisi_jejak > 0:
+            self._posisi_jejak -= 1
+            self._buka_lokasi(self._jejak[self._posisi_jejak])
+
+    def maju(self):
+        if self._posisi_jejak < len(self._jejak) - 1:
+            self._posisi_jejak += 1
+            self._buka_lokasi(self._jejak[self._posisi_jejak])
+
+    def _buka_lokasi(self, lokasi, **opsi):
+        """lokasi = (jenis, argumen...), mis. ("artis", id) atau ("cari", "tulus")."""
+        jenis, *argumen = lokasi
+        buka = {
+            "beranda": lambda: self.tampilkan_halaman(self.beranda),
+            "cari": self._buka_cari,
+            "playlist_yt": self._buka_playlist_yt,
+            "playlist_saya": self._buka_playlist_saya,
+            "artis": self._buka_artis,
+            "album": self._buka_album,
+            "lirik": self._buka_lirik,
+        }[jenis]
+        buka(*argumen, **opsi)
+        self.bilah_atas.atur_navigasi(self._posisi_jejak > 0, self._posisi_jejak < len(self._jejak) - 1)
+
     def _alihkan_lirik(self):
         """Tombol lirik: buka halaman lirik, atau kembali ke halaman sebelumnya bila sudah terbuka."""
         if self.tumpukan.currentWidget() is self.halaman_lirik:
-            self.tampilkan_halaman(self._halaman_sebelum_lirik or self.beranda)
-            return
-        self._halaman_sebelum_lirik = self.tumpukan.currentWidget()
+            self.mundur()
+        else:
+            self._pergi(("lirik",))
+
+    def _buka_lirik(self):
         self.tampilkan_halaman(self.halaman_lirik)
         self._muat_lirik()
 
@@ -231,22 +301,29 @@ class JendelaUtama(QMainWindow):
             else:
                 self.toast.tampilkan("Link ini tidak berisi playlist (tidak ada bagian ?list=…).")
             return
+        self._pergi(("cari", teks))
+
+    def _buka_cari(self, teks):
         self._nomor_permintaan += 1
         nomor = self._nomor_permintaan
+        self.bilah_atas.kotak_cari.setText(teks)  # saat kembali (←) ke pencarian lama
         self.tampilkan_halaman(self.halaman_cari)
         self.halaman_cari.tampilkan_memuat(teks)
-        jalankan_di_latar(cari_lagu, teks,
-                          selesai=lambda daftar: self._hasil_cari_siap(nomor, teks, daftar),
+        jalankan_di_latar(cari, teks,
+                          selesai=lambda hasil: self._hasil_cari_siap(nomor, teks, hasil),
                           gagal=lambda pesan: self.halaman_cari.tampilkan_pesan(f"Pencarian gagal: {pesan}"))
 
-    def _hasil_cari_siap(self, nomor, kata, daftar):
+    def _hasil_cari_siap(self, nomor, kata, hasil):
         if nomor != self._nomor_permintaan:
             return
-        self.hasil_cari = daftar
+        self.hasil_cari = list(hasil.lagu)
         self.kata_cari = kata
-        self.halaman_cari.tampilkan(kata, daftar, self.pemutar.antrean.sekarang)
+        self.halaman_cari.tampilkan(kata, hasil, self.pemutar.antrean.sekarang)
 
     def buka_playlist_yt(self, id_playlist, judul_sementara, putar=False):
+        self._pergi(("playlist_yt", id_playlist, judul_sementara), putar=putar)
+
+    def _buka_playlist_yt(self, id_playlist, judul_sementara, putar=False):
         self._nomor_permintaan += 1
         nomor = self._nomor_permintaan
         self.tampilkan_halaman(self.halaman_playlist)
@@ -264,7 +341,65 @@ class JendelaUtama(QMainWindow):
         self.halaman_playlist.tampilkan(YOUTUBE, judul, daftar, self.pemutar.antrean.sekarang)
         if putar and daftar:
             self.pemutar.putar_daftar(daftar, sumber=judul)
-        self._segarkan_tombol_playlist()
+        self._segarkan_tombol_putar()
+
+    # ---------- artis & album ----------
+
+    def buka_artis(self, id_artis):
+        self._pergi(("artis", id_artis))
+
+    def _buka_artis(self, id_artis):
+        self._nomor_permintaan += 1
+        nomor = self._nomor_permintaan
+        self.tampilkan_halaman(self.halaman_artis)
+        self.halaman_artis.tampilkan_memuat()
+        jalankan_di_latar(ambil_artis, id_artis,
+                          selesai=lambda artis: self._artis_siap(nomor, artis),
+                          gagal=self.halaman_artis.tampilkan_gagal)
+
+    def _artis_siap(self, nomor, artis):
+        if nomor != self._nomor_permintaan:
+            return
+        self.halaman_artis.tampilkan(artis, self.pemutar.antrean.sekarang)
+        self._segarkan_tombol_putar()
+
+    def putar_artis(self, id_artis):
+        """Tombol ▶ di kartu artis: putar lagu populernya tanpa pindah halaman (seperti Spotify)."""
+        jalankan_di_latar(ambil_artis, id_artis,
+                          selesai=lambda artis: self.pemutar.putar_daftar(list(artis.lagu), sumber=artis.nama),
+                          gagal=lambda pesan: self.toast.tampilkan(f"Gagal memuat artis: {pesan}"))
+
+    def klik_putar_artis(self):
+        artis = self.halaman_artis.artis
+        if artis and self.pemutar.sumber == artis.nama and self.pemutar.antrean.sekarang:
+            self.pemutar.putar_jeda()
+        elif artis and artis.lagu:
+            self.pemutar.putar_daftar(list(artis.lagu), sumber=artis.nama)
+
+    def buka_album(self, id_album):
+        self._pergi(("album", id_album))
+
+    def _buka_album(self, id_album):
+        self._nomor_permintaan += 1
+        nomor = self._nomor_permintaan
+        self.tampilkan_halaman(self.halaman_playlist)
+        self.halaman_playlist.tampilkan_memuat("Album", ALBUM)
+        jalankan_di_latar(ambil_album, id_album,
+                          selesai=lambda album: self._album_siap(nomor, album),
+                          gagal=self.halaman_playlist.tampilkan_gagal)
+
+    def _album_siap(self, nomor, album):
+        if nomor != self._nomor_permintaan:
+            return
+        self.isi_playlist = list(album.lagu)
+        self.halaman_playlist.tampilkan_album(album, self.pemutar.antrean.sekarang)
+        self._segarkan_tombol_putar()
+
+    def putar_album(self, id_album):
+        """Tombol ▶ di kartu album: putar albumnya tanpa pindah halaman."""
+        jalankan_di_latar(ambil_album, id_album,
+                          selesai=lambda album: self.pemutar.putar_daftar(list(album.lagu), sumber=album.judul),
+                          gagal=lambda pesan: self.toast.tampilkan(f"Gagal memuat album: {pesan}"))
 
     # ---------- antrean ----------
 
@@ -287,15 +422,24 @@ class JendelaUtama(QMainWindow):
         elif self.isi_playlist:
             self.pemutar.putar_daftar(self.isi_playlist, sumber=p.judul)
 
-    def _segarkan_tombol_playlist(self):
-        self.halaman_playlist.atur_main(
-            self.pemutar.sedang_memutar() and self.pemutar.sumber == self.halaman_playlist.judul)
+    def _segarkan_tombol_putar(self):
+        """Tombol putar besar di halaman playlist/artis menjadi ⏸ bila isinya yang sedang diputar."""
+        main = self.pemutar.sedang_memutar()
+        self.halaman_playlist.atur_main(main and self.pemutar.sumber == self.halaman_playlist.judul)
+        artis = self.halaman_artis.artis
+        self.halaman_artis.atur_main(main and artis is not None and self.pemutar.sumber == artis.nama)
+
+    def _mode_berubah(self):
+        acak = self.pemutar.antrean.acak
+        self.halaman_playlist.atur_acak(acak)
+        self.halaman_artis.atur_acak(acak)
 
     def _lagu_berubah(self, lagu):
         self.halaman_cari.tandai(lagu)
         self.halaman_playlist.tandai(lagu)
+        self.halaman_artis.tandai(lagu)
         self._tandai_koleksi()
-        self._segarkan_tombol_playlist()
+        self._segarkan_tombol_putar()
         self._muat_lirik()
         if lagu:
             self.riwayat.tambah(lagu)
@@ -317,7 +461,7 @@ class JendelaUtama(QMainWindow):
         p = self.halaman_playlist
         if p.jenis == SUKA:  # halaman Lagu yang Disukai sedang ditampilkan: perbarui isinya
             gulir = p.verticalScrollBar().value()
-            self.buka_playlist_saya(NAMA_LAGU_DISUKAI, pindah_halaman=False)
+            self._buka_playlist_saya(NAMA_LAGU_DISUKAI, pindah_halaman=False)
             p.verticalScrollBar().setValue(gulir)  # jangan melompat ke atas setiap kali ♥ diklik
 
     def _muat_mirip_suka(self):
@@ -351,14 +495,17 @@ class JendelaUtama(QMainWindow):
         """Isi playlist di Koleksi Kamu; "Lagu yang Disukai" diambil dari favorit."""
         return favorit().semua() if nama == NAMA_LAGU_DISUKAI else self.penyimpanan.ambil(nama)
 
-    def buka_playlist_saya(self, nama, pindah_halaman=True):
+    def buka_playlist_saya(self, nama):
+        self._pergi(("playlist_saya", nama))
+
+    def _buka_playlist_saya(self, nama, pindah_halaman=True):
         self._nomor_permintaan += 1  # batalkan playlist YouTube yang mungkin masih dimuat
         self.isi_playlist = self._ambil_playlist_saya(nama)
         jenis = SUKA if nama == NAMA_LAGU_DISUKAI else SAYA
         self.halaman_playlist.tampilkan(jenis, nama, self.isi_playlist, self.pemutar.antrean.sekarang)
         if pindah_halaman:
             self.tampilkan_halaman(self.halaman_playlist)
-        self._segarkan_tombol_playlist()
+        self._segarkan_tombol_putar()
 
     def putar_playlist_saya(self, nama):
         daftar = self._ambil_playlist_saya(nama)
@@ -399,5 +546,5 @@ class JendelaUtama(QMainWindow):
         if QMessageBox.question(self, "Hapus playlist?", f"Hapus playlist “{nama}”?") == QMessageBox.Yes:
             self.penyimpanan.hapus(nama)
             self._segarkan_koleksi()
-            self.tampilkan_halaman(self.beranda)
+            self._pergi(("beranda",))
             self.toast.tampilkan("Playlist dihapus")

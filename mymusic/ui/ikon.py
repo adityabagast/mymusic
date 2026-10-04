@@ -41,6 +41,8 @@ _IKON = {
     "simpan": '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
     "not": '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
     "jam": '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    "kembali": '<path d="m15 18-6-6 6-6"/>',
+    "maju": '<path d="m9 18 6-6-6-6"/>',
     "hati": '<path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/>',
     "hati_penuh": '<path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z" fill="currentColor"/>',
     "mikrofon": '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/>',

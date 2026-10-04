@@ -1,5 +1,5 @@
 """Komponen kecil yang dipakai ulang di banyak tempat."""
-from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QRect, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPalette, QPixmap, QRegion
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QSizePolicy, QWidget
 
@@ -8,6 +8,7 @@ from mymusic.core.favorit import favorit
 from mymusic.core.sampul import pemuat_sampul
 from mymusic.services.youtube import perbesar_sampul
 from mymusic.ui.ikon import ikon, pixmap_ikon
+from mymusic.ui.navigasi import navigasi
 from mymusic.ui.tema import PANEL, TEKS, TEKS_DI_AKSEN, TEKS_REDUP, TERPILIH
 
 SAMPUL_SUKA = "mymusic:suka"  # "URL" khusus: Sampul menggambar sampul Lagu yang Disukai sendiri
@@ -44,6 +45,85 @@ class LabelPotong(QLabel):
         teks = self.fontMetrics().elidedText(self.text(), Qt.ElideRight, self.width())
         self.style().drawItemText(pelukis, self.rect(), int(self.alignment()), self.palette(),
                                   self.isEnabled(), teks, QPalette.WindowText)
+
+
+def tautan_artis(lagu):
+    """Bagian LabelTautan untuk artis sebuah lagu; lagu lama tanpa id artis tampil sebagai teks biasa."""
+    return lagu.daftar_artis or ((lagu.artis or "—", ""),)
+
+
+class LabelTautan(LabelPotong):
+    """Nama-nama yang bisa diklik (mis. "Artis A, Artis B"), digaris bawahi saat disorot, dipotong '…' bila
+    tidak muat. Klik membuka halaman artis/album lewat navigasi(). Bagian tanpa id hanya teks biasa."""
+
+    def __init__(self, peran="kecil", tujuan="artis"):
+        super().__init__("", peran)
+        self.setMouseTracking(True)
+        self._tujuan = tujuan  # "artis" atau "album"
+        self._bagian = []  # [(teks, id), ...]
+        self._kotak = []  # [(QRect, id), ...] letak tiap tautan saat terakhir digambar
+        self._sorot = None  # id yang sedang di bawah mouse
+
+    def atur(self, bagian):
+        self._bagian = [(teks, id_) for teks, id_ in bagian if teks]
+        self._sorot = None
+        self.setText(", ".join(teks for teks, _ in self._bagian))  # untuk tooltip, ukuran, & aksesibilitas
+        self.update()
+
+    def paintEvent(self, event):
+        pelukis = QPainter(self)
+        fm = self.fontMetrics()
+        warna = self.palette().color(QPalette.WindowText)
+        x, self._kotak = 0, []
+        for i, (teks, id_) in enumerate(self._bagian):
+            if i:
+                pemisah = ", "
+                pelukis.setPen(warna)
+                pelukis.drawText(QRect(x, 0, self.width() - x, self.height()), Qt.AlignVCenter, pemisah)
+                x += fm.horizontalAdvance(pemisah)
+            sisa = self.width() - x
+            lebar = fm.horizontalAdvance(teks)
+            terpotong = lebar > sisa
+            if terpotong:
+                teks, lebar = fm.elidedText(teks, Qt.ElideRight, sisa), sisa
+            disorot = id_ and id_ == self._sorot
+            huruf = self.font()
+            huruf.setUnderline(bool(disorot))
+            pelukis.setFont(huruf)
+            pelukis.setPen(QColor(TEKS) if disorot else warna)
+            kotak = QRect(x, 0, lebar, self.height())
+            pelukis.drawText(kotak, Qt.AlignVCenter, teks)
+            self._kotak.append((kotak, id_))
+            x += lebar
+            if terpotong:
+                break
+
+    def _id_di(self, titik):
+        return next((id_ for kotak, id_ in self._kotak if id_ and kotak.contains(titik)), None)
+
+    def mouseMoveEvent(self, event):
+        sorot = self._id_di(event.position().toPoint())
+        if sorot != self._sorot:
+            self._sorot = sorot
+            self.setCursor(Qt.PointingHandCursor if sorot else Qt.ArrowCursor)
+            self.update()
+        event.ignore()  # tetap diteruskan ke baris (efek sorot baris)
+
+    def leaveEvent(self, event):
+        self._sorot = None
+        self.update()
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event):
+        id_ = self._id_di(event.position().toPoint())
+        if event.button() != Qt.LeftButton or not id_:
+            event.ignore()  # bukan tautan: biarkan induknya yang menangani (mis. klik dua kali = putar)
+            return
+        (navigasi().buka_artis if self._tujuan == "artis" else navigasi().buka_album).emit(id_)
+
+    def mouseDoubleClickEvent(self, event):
+        if not self._id_di(event.position().toPoint()):
+            event.ignore()
 
 
 class TombolIkon(QPushButton):
@@ -142,6 +222,11 @@ class Sampul(QWidget):
         self._sudut = sudut
         self._gambar = None
         self._url = ""
+
+    def atur_sudut(self, sudut):
+        """Sudut bulat dalam piksel; setengah lebar = lingkaran (foto artis)."""
+        self._sudut = sudut
+        self.update()
 
     def atur(self, url):
         if url == SAMPUL_SUKA:

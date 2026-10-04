@@ -1,15 +1,18 @@
-"""Halaman playlist: header bergradasi dari warna sampul, tombol aksi, lalu tabel lagu."""
+"""Halaman playlist & album: header bergradasi dari warna sampul, tombol aksi, lalu tabel lagu."""
+import html
+
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QVBoxLayout
 
 from mymusic.config import AKSEN
 from mymusic.ui.baris_lagu import DaftarLagu
+from mymusic.ui.navigasi import navigasi
 from mymusic.ui.tema import TEKS_REDUP, TERPILIH
 from mymusic.ui.widgets import (
     SAMPUL_SUKA, LabelPotong, LatarGradasi, Sampul, TombolBulat, TombolIkon, label, warna_dominan,
 )
 
-SAYA, YOUTUBE, SUKA = "saya", "youtube", "suka"  # SUKA = Lagu yang Disukai
+SAYA, YOUTUBE, SUKA, ALBUM = "saya", "youtube", "suka", "album"  # SUKA = Lagu yang Disukai
 
 
 class HalamanPlaylist(QScrollArea):
@@ -40,6 +43,7 @@ class HalamanPlaylist(QScrollArea):
         self.label_jenis = label("", "judul-kecil")
         self.label_judul = LabelPotong("", "judul-besar")
         self.label_info = label("", "info")
+        self.label_info.linkActivated.connect(navigasi().buka_artis.emit)  # nama artis di halaman album
         teks = QVBoxLayout()
         teks.setSpacing(8)
         teks.addStretch()
@@ -85,9 +89,9 @@ class HalamanPlaylist(QScrollArea):
         self.daftar.tambah.connect(self.tambah.emit)
         self.daftar.sisipkan.connect(self.sisipkan.emit)
 
-    def tampilkan_memuat(self, judul):
-        self._isi_kepala(YOUTUBE, judul, "")
-        self.label_info.setText("Memuat isi playlist…")
+    def tampilkan_memuat(self, judul, jenis=YOUTUBE):
+        self._isi_kepala(jenis, judul, "")
+        self.label_info.setText("Memuat album…" if jenis == ALBUM else "Memuat isi playlist…")
         self.label_status.hide()
         self.daftar.isi([])
 
@@ -106,7 +110,19 @@ class HalamanPlaylist(QScrollArea):
         self.label_status.setVisible(not daftar_lagu)
         self.label_status.setText("Lagu yang kamu sukai akan muncul di sini. Klik ♥ pada lagu mana pun untuk menyimpannya."
                                   if jenis == SUKA else "Playlist ini kosong.")
+        self.daftar.atur_tampil_album(jenis != ALBUM)
         self.daftar.isi(daftar_lagu, 1, lagu_aktif)
+
+    def tampilkan_album(self, album, lagu_aktif=None):
+        self.tampilkan(ALBUM, album.judul, list(album.lagu), lagu_aktif)
+        self.label_jenis.setText(album.jenis)
+        # Nama artis jadi tautan putih tebal seperti Spotify; diklik -> linkActivated(id) -> halaman artis.
+        artis = ", ".join(
+            f'<a href="{id_}" style="color: #FFFFFF; text-decoration: none; font-weight: 700;">{html.escape(nama)}</a>'
+            if id_ else html.escape(nama) for nama, id_ in album.daftar_artis)
+        menit = round(sum(lagu.detik for lagu in album.lagu) / 60)
+        bagian = (artis, album.tahun, f"{len(album.lagu)} lagu, sekitar {menit} menit")
+        self.label_info.setText(" · ".join(x for x in bagian if x))
 
     def _isi_kepala(self, jenis, judul, url_sampul):
         self.jenis = jenis
@@ -119,7 +135,7 @@ class HalamanPlaylist(QScrollArea):
         self.label_judul.setStyleSheet(f"font-size: {ukuran}px;")
         self.latar.atur_warna(TERPILIH)  # sementara, sampai warna sampul diketahui
         self.sampul.atur(url_sampul)
-        self.tombol_simpan.setVisible(jenis == YOUTUBE)
+        self.tombol_simpan.setVisible(jenis in (YOUTUBE, ALBUM))
         self.tombol_hapus.setVisible(jenis == SAYA)
         self.verticalScrollBar().setValue(0)
 

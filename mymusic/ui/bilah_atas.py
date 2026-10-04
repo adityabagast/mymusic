@@ -1,16 +1,18 @@
-"""Bilah paling atas: logo, tombol Beranda, dan kotak cari."""
+"""Bilah paling atas: logo, tombol ← →, tombol Beranda, dan kotak cari."""
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QWidget
 
 from mymusic.config import AKSEN, LEBAR_KOLEKSI, NAMA_APLIKASI
 from mymusic.ui.ikon import ikon, pixmap_ikon
 from mymusic.ui.tema import TEKS, TEKS_DI_AKSEN, TEKS_REDUP
-from mymusic.ui.widgets import label
+from mymusic.ui.widgets import TombolIkon, label
 
 
 class BilahAtas(QWidget):
     cari = Signal(str)
     beranda = Signal()
+    mundur = Signal()
+    maju = Signal()
 
     def __init__(self):
         super().__init__()
@@ -31,6 +33,13 @@ class BilahAtas(QWidget):
         tata_kiri.addWidget(logo)
         tata_kiri.addWidget(nama)
         tata_kiri.addStretch()
+        self.tombol_mundur = TombolIkon("kembali", "Kembali (Alt+←)", 22, 36)
+        self.tombol_maju = TombolIkon("maju", "Maju (Alt+→)", 22, 36)
+        self.tombol_mundur.clicked.connect(lambda: self.mundur.emit())
+        self.tombol_maju.clicked.connect(lambda: self.maju.emit())
+        tata_kiri.addWidget(self.tombol_mundur)
+        tata_kiri.addWidget(self.tombol_maju)
+        self.atur_navigasi(False, False)
 
         self.tombol_rumah = QPushButton()
         self.tombol_rumah.setProperty("jenis", "rumah")
@@ -63,6 +72,12 @@ class BilahAtas(QWidget):
         teks = self.kotak_cari.text().strip()
         if teks:
             self.cari.emit(teks)
+
+    def atur_navigasi(self, bisa_mundur, bisa_maju):
+        for tombol, nama_ikon, bisa in ((self.tombol_mundur, "kembali", bisa_mundur),
+                                        (self.tombol_maju, "maju", bisa_maju)):
+            tombol.setEnabled(bisa)
+            tombol.ganti_ikon(nama_ikon, TEKS if bisa else "#535353")
 
     def atur_beranda_aktif(self, aktif):
         self.tombol_rumah.setIcon(ikon("rumah", TEKS if aktif else TEKS_REDUP, 24))

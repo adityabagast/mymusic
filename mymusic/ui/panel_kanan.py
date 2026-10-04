@@ -6,7 +6,9 @@ from PySide6.QtWidgets import (
 )
 
 from mymusic.config import AKSEN, LEBAR_PANEL_KANAN
-from mymusic.ui.widgets import LabelPotong, Sampul, TombolIkon, TombolSuka, atur_properti, kosongkan_tata, label
+from mymusic.ui.widgets import (
+    LabelPotong, LabelTautan, Sampul, TombolIkon, TombolSuka, atur_properti, kosongkan_tata, label, tautan_artis,
+)
 
 DIPUTAR, ANTREAN = "diputar", "antrean"
 MIME_POSISI = "application/x-mymusic-posisi"  # jenis data yang dibawa saat baris antrean diseret
@@ -171,7 +173,7 @@ class PanelKanan(QFrame):
         self.sampul_besar = Sampul(LEBAR_PANEL_KANAN - 32, sudut=8)
         self.label_judul = label("", "judul-lagu")
         self.label_judul.setWordWrap(True)
-        self.label_artis = label("", "kecil")
+        self.label_artis = LabelTautan("kecil", "artis")
         self.label_artis.setStyleSheet("font-size: 15px;")
         self.tombol_suka = TombolSuka(None, 22, 36)
         teks_lagu = QVBoxLayout()
@@ -286,7 +288,7 @@ class PanelKanan(QFrame):
             self.label_sumber.setText(sumber if lagu else "Sedang diputar")
             self.sampul_besar.atur(lagu.sampul if lagu else "")
             self.label_judul.setText(lagu.judul if lagu else "Belum ada lagu diputar")
-            self.label_artis.setText(lagu.artis if lagu else "")
+            self.label_artis.atur(tautan_artis(lagu) if lagu else [])
             self.tombol_suka.atur_lagu(lagu)
             self.tombol_suka.setVisible(lagu is not None)
             kosongkan_tata(self._tata_berikut)

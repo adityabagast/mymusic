@@ -1,9 +1,11 @@
-"""Halaman hasil pencarian: Hasil teratas + 4 lagu, lalu Lagu lainnya."""
+"""Halaman hasil pencarian: Hasil teratas + 4 lagu, rak Artis & Album, lalu Lagu lainnya."""
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QVBoxLayout, QWidget
 
+from mymusic.models import InfoAlbum, InfoArtis
 from mymusic.ui.baris_lagu import DaftarLagu
-from mymusic.ui.kartu import KartuTeratas
+from mymusic.ui.kartu import BagianKartu, KartuTeratas, kartu_album, kartu_artis
+from mymusic.ui.navigasi import navigasi
 from mymusic.ui.widgets import label
 
 JUMLAH_ATAS = 4
@@ -50,6 +52,11 @@ class HalamanCari(QScrollArea):
         baris_atas.addLayout(kanan, 3)
         tata_hasil.addLayout(baris_atas)
 
+        self.bagian_artis = BagianKartu("Artis")
+        self.bagian_album = BagianKartu("Album")
+        tata_hasil.addWidget(self.bagian_artis)
+        tata_hasil.addWidget(self.bagian_album)
+
         self.label_lainnya = label("Lagu lainnya", "judul-bagian")
         self.daftar_lainnya = DaftarLagu(tampil_album=True)
         tata_hasil.addSpacing(20)
@@ -58,7 +65,8 @@ class HalamanCari(QScrollArea):
         tata.addWidget(self.wadah_hasil)
         tata.addStretch()
 
-        self.kartu_teratas.putar.connect(lambda: self.putar.emit(0))
+        self.kartu_teratas.klik.connect(self._klik_teratas)
+        self.kartu_teratas.putar.connect(self._putar_teratas)
         self.daftar_atas.putar.connect(self.putar.emit)
         self.daftar_lainnya.putar.connect(lambda i: self.putar.emit(i + JUMLAH_ATAS))
         for daftar in (self.daftar_atas, self.daftar_lainnya):
@@ -74,23 +82,49 @@ class HalamanCari(QScrollArea):
     def tampilkan_memuat(self, kata):
         self.tampilkan_pesan(f"Mencari “{kata}”…")
 
-    def tampilkan(self, kata, daftar_lagu, lagu_aktif=None):
-        if not daftar_lagu:
+    def tampilkan(self, kata, hasil, lagu_aktif=None):
+        """hasil = HasilCari dari services.youtube.cari()."""
+        daftar_lagu = list(hasil.lagu)
+        if not daftar_lagu and not hasil.teratas:
             self.tampilkan_pesan(f"Tidak ada hasil untuk “{kata}”.")
             return
         self.label_status.hide()
         self.wadah_hasil.show()
-        self.kartu_teratas.atur(daftar_lagu[0])
+        # Hasil teratas: artis/album bila YouTube Music menganggapnya paling cocok, selain itu lagu pertama.
+        self._teratas = hasil.teratas or daftar_lagu[0]
+        teratas = self._teratas
+        if isinstance(teratas, InfoArtis):
+            self.kartu_teratas.atur(teratas.nama, "Artis", teratas.sampul, bulat=True)
+        elif isinstance(teratas, InfoAlbum):
+            self.kartu_teratas.atur(teratas.judul, teratas.keterangan or "Album", teratas.sampul)
+        else:
+            self.kartu_teratas.atur(teratas.judul, f"Lagu · {teratas.artis}", teratas.sampul)
         self.daftar_atas.isi(daftar_lagu[:JUMLAH_ATAS], 1)
+        self.bagian_artis.isi([kartu_artis(info) for info in hasil.artis])
+        self.bagian_album.isi([kartu_album(info) for info in hasil.album])
         self.daftar_lainnya.isi(daftar_lagu[JUMLAH_ATAS:], JUMLAH_ATAS + 1)
         self.label_lainnya.setVisible(len(daftar_lagu) > JUMLAH_ATAS)
-        self._teratas = daftar_lagu[0]
         self.tandai(lagu_aktif)
         self.verticalScrollBar().setValue(0)
+
+    def _klik_teratas(self):
+        if isinstance(self._teratas, InfoArtis):
+            navigasi().buka_artis.emit(self._teratas.id)
+        elif isinstance(self._teratas, InfoAlbum):
+            navigasi().buka_album.emit(self._teratas.id)
+
+    def _putar_teratas(self):
+        if isinstance(self._teratas, InfoArtis):
+            navigasi().putar_artis.emit(self._teratas.id)
+        elif isinstance(self._teratas, InfoAlbum):
+            navigasi().putar_album.emit(self._teratas.id)
+        else:
+            self.putar.emit(0)
 
     def tandai(self, lagu_aktif):
         if self.wadah_hasil.isHidden():
             return
-        self.kartu_teratas.atur_aktif(lagu_aktif is not None and lagu_aktif.video_id == self._teratas.video_id)
+        id_teratas = getattr(self._teratas, "video_id", None)  # hanya lagu yang punya video_id
+        self.kartu_teratas.atur_aktif(lagu_aktif is not None and id_teratas == lagu_aktif.video_id)
         self.daftar_atas.tandai(lagu_aktif)
         self.daftar_lainnya.tandai(lagu_aktif)
