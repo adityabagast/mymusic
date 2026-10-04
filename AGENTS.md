@@ -48,6 +48,7 @@ _Terakhir diperbarui: 2026-10-04_
 | 7 | Favorit & riwayat: ♥ di bilah pemutar, panel Sedang diputar, setiap baris lagu, menu ⋯, Alt+Shift+B; "Lagu yang Disukai" di atas Koleksi Kamu & ubin Beranda (sampul gradasi aksen); rak Beranda "Baru diputar" dan "Karena kamu menyukai …" (radio dari 1 favorit acak saat aplikasi dibuka) | ✅ selesai — diterapkan langsung oleh agent atas permintaan pengguna; 32 pemeriksaan GUI + uji data lolos di proyek |
 | 8 | Jelajah: halaman artis (banner, populer, album, single, artis serupa) & album (pakai HalamanPlaylist jenis ALBUM); nama artis/album bisa diklik di mana saja (LabelTautan); Cari menampilkan hasil teratas artis/album + rak Artis & Album; tombol ← → + Alt+←/→ + tombol samping mouse; ▶ di kartu artis/album memutar tanpa pindah halaman | ✅ selesai — diterapkan langsung oleh agent atas permintaan pengguna; 34 pemeriksaan GUI + uji data (API asli) lolos di proyek, regresi tahap 6 & 7 lolos |
 | — | Identitas: ikon aplikasi lavender pastel (desain A: persegi bulat #CDBBFF + not ganda #33206E) dibuat `alat/buat_ikon.py` → `mymusic/aset/ikon.ico` (9 ukuran) + `ikon.svg`; dipasang di jendela/taskbar (AppUserModelID) & logo bilah atas; warna aksen aplikasi ikut lavender | ✅ selesai — dipilih pengguna dari pratinjau; diterapkan agent; uji ikon + regresi tahap 7 & 8 lolos |
+| 9 | Integrasi Windows: tombol media keyboard/headset + overlay media Windows (SMTC lewat paket winrt, opsional) dan ikon tray (menu Putar/Jeda, Berikutnya, Sebelumnya, "Tetap berjalan di sini saat jendela ditutup", Tampilkan, Keluar; klik kiri = tampilkan, klik tengah = putar/jeda); tombol X menyembunyikan ke tray (bisa dimatikan, diingat di sesi) | ✅ selesai — diterapkan agent; 25 pemeriksaan GUI (termasuk perintah dari sisi Windows) + regresi tahap 7 & 8 lolos. **Paket winrt belum dipasang di .venv** — pengguna diberi perintah pip-nya |
 
 **Isi folder saat ini:** struktur pada bagian 4 sudah lengkap (`main.py`, `requirements.txt`, `arsip/`, `mymusic/`), plus `AGENTS.md`, `CLAUDE.md`, `.venv/`. Folder `data/` (playlist.json, sesi.json, favorit.json, riwayat.json) dibuat otomatis dan tidak ikut ke Git.
 
@@ -71,10 +72,11 @@ beri tahu baris yang harus diperbaiki — jangan menimpa kode pengguna tanpa izi
 ## 4. Struktur proyek (setelah tahap 8)
 
 ```
-main.py                       titik masuk: .venv\Scripts\python.exe main.py (AppUserModelID, ikon, font, QSS)
+main.py                       titik masuk: .venv\Scripts\python.exe main.py (AppUserModelID, ikon, font, QSS;
+                              setQuitOnLastWindowClosed(False) + jendela.ditutup → app.quit, karena X bisa ke tray)
 alat/buat_ikon.py             membuat mymusic/aset/ikon.svg + ikon.ico (WARNA_LATAR/WARNA_NOT di atas file; jalankan ulang
                               bila warna diubah). ICO = kepala + direktori + PNG per ukuran, ditulis dengan struct
-requirements.txt
+requirements.txt              + paket winrt-* (opsional, untuk SMTC; tanpa itu aplikasi tetap jalan)
 arsip/                        tahap1_cari.py, tahap2_gui.py (referensi; tidak diimpor)
 data/                         playlist.json, sesi.json, favorit.json, riwayat.json — dibuat otomatis (di .gitignore)
 mymusic/
@@ -92,7 +94,7 @@ mymusic/
 │   ├── penyimpanan.py        PenyimpananPlaylist (JSON {"nama": [lagu,...]})
 │   ├── daftar_tersimpan.py   DaftarTersimpan(path, batas): JSON [lagu,...] terbaru di depan, tanpa dobel;
 │   │                         semua/ada/tambah/hapus — dipakai favorit & riwayat
-│   └── sesi.py               PenyimpananSesi: data/sesi.json {volume, panel, pemutar: {...}}; rusak/hilang -> {}
+│   └── sesi.py               PenyimpananSesi: data/sesi.json {volume, panel, tutup_ke_tray, pemutar: {...}}; rusak/hilang -> {}
 ├── core/
 │   ├── favorit.py            Favorit(QObject) + favorit() (satu objek, seperti pemuat_sampul); sinyal
 │   │                         berubah(lagu, disukai); ada/alihkan/semua — SATU sumber data untuk semua tombol ♥
@@ -101,6 +103,9 @@ mymusic/
 │   ├── pekerja.py            Pekerja(QRunnable) + jalankan_di_latar(fungsi, *args, selesai=, gagal=)
 │   ├── pemutar.py            Pemutar(QObject) = QMediaPlayer + Antrean; .sumber, sedang_memutar(), atur_acak,
 │   │                         ganti_mode_ulang, pindahkan, geser_relatif, ke_sesi/pulihkan_sesi, coba ulang 1x saat error
+│   ├── media_windows.py      KontrolMediaWindows: SMTC via winrt MediaPlayer (command_manager dimatikan),
+│   │                         button_pressed → Signal → Pemutar; metadata+sampul+status dari sinyal Pemutar;
+│   │                         buat_kontrol_media() = None bila winrt/SMTC tidak ada; lepas() saat keluar
 │   └── sampul.py             pemuat_sampul(): unduh gambar sekali + cache di memori
 └── ui/
     ├── tema.py               warna (LATAR, PANEL, HOVER, ...), muat_font(), stylesheet(font) — QSS memakai
@@ -124,6 +129,8 @@ mymusic/
     ├── halaman_lirik.py      HalamanLirik (QScrollArea, latar dilukis di viewport), BarisLirik; properti QSS
     │                         `keadaan` = lewat/aktif/nanti/biasa; sinyal geser(ms); .video_id = lagu yang ditampilkan
     ├── panel_koleksi.py      panel kiri "Koleksi Kamu": item_suka tetap di atas + ItemKoleksi playlist (terpilih & diputar)
+    ├── tray.py               TrayAplikasi(QSystemTrayIcon): menu, tooltip lagu; sinyal tampilkan_jendela/keluar/
+    │                         tutup_ke_tray_diubah
     ├── panel_kanan.py        "Sedang diputar" (+ ♥) / "Antrean" (BarisAntrean, DaftarGeser = drag & drop urutan)
     ├── bilah_atas.py         logo, tombol ← → (atur_navigasi), tombol Beranda, kotak cari (Enter → sinyal cari)
     ├── bilah_pemutar.py      3 kolom: lagu + ♥ (menempel di belakang judul) | kendali + progres | tombol panel, lirik (🎤) + volume
@@ -131,7 +138,8 @@ mymusic/
                               favorit (_favorit_berubah, _muat_mirip_suka), riwayat (self.riwayat, dicatat di _lagu_berubah),
                               artis & album (buka_/putar_), riwayat navigasi ← → (_jejak, _pergi, _buka_lokasi, mundur/maju;
                               semua pindah halaman lewat _pergi), pintasan (_pasang_pintasan + eventFilter tombol mouse),
-                              sesi (_pulihkan_sesi / closeEvent)
+                              sesi (_pulihkan_sesi / _simpan_sesi), tray & kontrol_media, closeEvent (ke tray atau benar-
+                              benar tutup → sinyal ditutup), tampilkan_dari_tray, keluar
 ```
 
 Pintasan: Spasi putar/jeda · Ctrl+→/← berikutnya/sebelumnya · Shift+→/← geser 5 detik · Ctrl+↑/↓ volume ·
@@ -195,6 +203,11 @@ tabel bergulir bersama seperti Spotify. Untuk daftar sangat panjang (ribuan lagu
 | Uji lama gagal "kembali ke halaman sebelumnya" | `tampilkan_halaman()` langsung tidak tercatat di riwayat ← → | di uji & kode, pindah halaman lewat `_pergi()` / `mulai_cari()` / `buka_*()` |
 | Taskbar menampilkan ikon Python, bukan ikon aplikasi | Windows mengelompokkan proses sebagai python.exe | `SetCurrentProcessExplicitAppUserModelID(ID_APLIKASI)` di `main.py` SEBELUM QApplication dibuat |
 | Pembaca ikon .NET (System.Drawing.Icon) memberi 128 px saat diminta 256 | pembaca lama tidak memakai entri 256-PNG | bukan masalah: Explorer/taskbar mendukung 256-PNG (format standar sejak Vista) |
+| Uji "Sebelumnya" gagal setelah menunggu | lewat 3 detik, ⏮ mengulang lagu dulu (tahap 5) | uji dua tekanan: pertama posisi ~0, kedua pindah lagu |
+| Uji tautan artis sesekali gagal | hasil cari YouTube bisa berisi lagu tanpa id artis (sengaja teks biasa) | pilih baris yang `daftar_artis`-nya punya id |
+| `PYTHONPATH="/d/...;..."` di Git Bash → ModuleNotFoundError | Python Windows tidak mengerti path gaya Git Bash bila digabung `;` | pakai `D:/projects/mymusic;C:/...` |
+| Menguji tombol media tanpa mengganggu aplikasi lain | menekan tombol media sungguhan mengenai sesi aktif mana pun (mis. Chrome) | lewat `GlobalSystemMediaTransportControlsSessionManager` (paket winrt-Windows.Media.Control, hanya untuk uji), pilih sesi `source_app_user_model_id == ID_APLIKASI`, panggil `try_pause_async` dkk. di thread + asyncio |
+| Callback tombol SMTC datang di thread Windows | handler WinRT bukan thread Qt | emit Signal milik QObject → diteruskan otomatis ke thread utama |
 | Uji GUI berhenti setelah `jendela.close()` | Qt keluar saat jendela terakhir ditutup | `app.setQuitOnLastWindowClosed(False)` di skrip uji |
 | Baris lama sempat terlihat bertumpuk setelah daftar diisi ulang | widget yang di-`deleteLater()` masih tampil sampai event loop berjalan | `kosongkan_tata` memanggil `hide()` dulu |
 | `HTTP error 403 Forbidden` sesekali dari googlevideo | YouTube menolak sementara (terlihat setelah banyak permintaan beruntun) | Pemutar meminta URL baru sekali & lanjut dari posisi yang sama; pesan "Gagal memutar" baru muncul bila gagal lagi |
@@ -235,8 +248,7 @@ Disepakati dengan pengguna (2026-10-04): **.exe dibuat di tahap 10, sebagai taha
 
 | Tahap | Isi | Catatan |
 |---|---|---|
-| 9 | Ikon tray + tombol media keyboard (Play/Next/Prev) + kontrol di overlay media Windows (ikon .ico sudah ada) | perilaku khas Windows ini sebaiknya ada sebelum dibungkus .exe |
-| 10 | Jadi .exe (PyInstaller) + cara memperbarui yt-dlp | yt-dlp ikut "terkunci" di dalam .exe → perlu jalan keluar saat YouTube berubah (mis. build ulang, atau yt-dlp diperbarui terpisah) |
+| 10 | Jadi .exe (PyInstaller) + cara memperbarui yt-dlp + satu instans saja (sekarang membuka 2x = 2 ikon tray & 2 sesi media; mis. QLocalServer) + pastikan paket winrt ikut terbungkus | yt-dlp ikut "terkunci" di dalam .exe → perlu jalan keluar saat YouTube berubah (mis. build ulang, atau yt-dlp diperbarui terpisah) |
 | nanti | Unduh untuk offline (`services/unduhan.py`, yt-dlp `download=True`) · tema terang & pilihan aksen (`ui/tema.py`) · "Tampilkan semua" lagu artis (browseId `songs` → playlist) | bisa sebelum/sesudah .exe |
 
 ## 11. Riwayat keputusan
@@ -260,3 +272,4 @@ Disepakati dengan pengguna (2026-10-04): **.exe dibuat di tahap 10, sebagai taha
 - **2026-10-04** — Tahap 7 (favorit & riwayat) selesai. Keputusan: `Favorit` di core sebagai satu objek global `favorit()` (pola `pemuat_sampul()`) agar setiap `TombolSuka` bisa membaca & mendengarkan tanpa diteruskan lewat banyak konstruktor; sinyal `berubah(lagu, disukai)` membuat setiap tombol hanya memperbarui dirinya bila video_id cocok. Favorit & riwayat memakai satu kelas `DaftarTersimpan` (riwayat dibatasi 50, dicatat setiap `lagu_berubah`). "Lagu yang Disukai" diperlakukan sebagai playlist berjenis SUKA dengan nama khusus (`NAMA_LAGU_DISUKAI`, ditolak sebagai nama playlist baru) dan sampul `SAMPUL_SUKA` agar pola (nama, keterangan, url) di Koleksi/Beranda tetap sama. Rak Beranda dijadikan `BagianLagu` + satu sinyal `putar_lagu(daftar, i, sumber)` (menggantikan `putar_rekomendasi`). Sekalian memperbaiki kolom kepala tabel yang bergeser sejak tahap 4.
 - **2026-10-04** — Tahap 8 (artis & album) selesai. Keputusan: `Lagu` mendapat `daftar_artis` ((nama, id), ...) & `id_album` (data lama tetap terbaca, tampil sebagai teks biasa); nama artis/album jadi tautan lewat `LabelTautan` yang menggambar & memotong teksnya sendiri; perpindahan halaman dari widget mana pun lewat satu objek `navigasi()` (pola `favorit()`); riwayat ← → berupa daftar "lokasi" (tuple) dan SEMUA perpindahan halaman lewat `_pergi()`; `cari`/`ambil_artis`/`ambil_album` memakai `lru_cache` (aman karena dataclass frozen berisi tuple) agar ← → instan; ▶ di kartu artis/album memutar tanpa pindah halaman (seperti Spotify); halaman album memakai ulang HalamanPlaylist. Rencana: tahap 9 tray + tombol media, tahap 10 .exe.
 - **2026-10-05** — Ikon aplikasi dibuat sebelum tahap 9. Pengguna memilih desain A (persegi bulat + not, sama dengan logo) dari 4 usulan, lalu warna lavender pastel dari 6 varian pastel; not memakai ungu tua senada (bukan hitam). Ikon digambar per ukuran (garis lebih tebal ≤ 24 px, kepala not terisi) agar terbaca di tray. Atas pilihan pengguna (dari pratinjau berdampingan), AKSEN aplikasi ikut diganti ke #CDBBFF. Logo di bilah atas kini memakai ikon.ico.
+- **2026-10-05** — Tahap 9 selesai. Keputusan: SMTC lewat pywinrt (`winrt-*` 3.2.1 punya wheel cp314; `winsdk` tidak tersedia) memakai `Windows.Media.Playback.MediaPlayer` hanya sebagai pemegang SMTC; satu mekanisme ini memberi tombol media global + overlay sekaligus (tanpa RegisterHotKey). Paket opsional: impor dibungkus try/except. X default ke tray (+ notifikasi sekali), dapat dimatikan dari menu tray dan diingat di sesi; sesi disimpan juga saat disembunyikan. Timeline/progres di overlay belum diisi (bisa ditambah nanti). Paket belum dipasang ke .venv pengguna (sesuai janji memberi tahu dulu); kode diverifikasi dengan salinan paket di folder sementara.

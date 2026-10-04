@@ -17,7 +17,10 @@ def main():
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(str(FILE_IKON)))  # berlaku untuk semua jendela & dialog
     app.setStyleSheet(stylesheet(muat_font()))
+    # Jendela yang ditutup bisa tetap hidup di tray, jadi aplikasi baru keluar saat JendelaUtama benar-benar selesai.
+    app.setQuitOnLastWindowClosed(False)
     jendela = JendelaUtama()
+    jendela.ditutup.connect(app.quit)
     jendela.show()
     sys.exit(app.exec())
 

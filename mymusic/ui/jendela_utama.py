@@ -1,16 +1,18 @@
 """Jendela utama: merangkai bilah atas, Koleksi, halaman tengah, panel kanan, dan bilah pemutar."""
 import random
 
-from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QApplication, QHBoxLayout, QInputDialog, QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget,
+    QApplication, QHBoxLayout, QInputDialog, QMainWindow, QMessageBox, QStackedWidget, QSystemTrayIcon, QVBoxLayout,
+    QWidget,
 )
 
 from mymusic.config import (
-    BATAS_RIWAYAT, FILE_RIWAYAT, LANGKAH_GESER_MS, LANGKAH_VOLUME, NAMA_APLIKASI, NAMA_LAGU_DISUKAI, VOLUME_AWAL,
+    BATAS_RIWAYAT, FILE_IKON, FILE_RIWAYAT, LANGKAH_GESER_MS, LANGKAH_VOLUME, NAMA_APLIKASI, NAMA_LAGU_DISUKAI, VOLUME_AWAL,
 )
 from mymusic.core.favorit import favorit
+from mymusic.core.media_windows import buat_kontrol_media
 from mymusic.core.pekerja import jalankan_di_latar
 from mymusic.core.pemutar import Pemutar
 from mymusic.services.daftar_tersimpan import DaftarTersimpan
@@ -30,10 +32,13 @@ from mymusic.ui.halaman_playlist import ALBUM, SAYA, SUKA, YOUTUBE, HalamanPlayl
 from mymusic.ui.navigasi import navigasi
 from mymusic.ui.panel_kanan import DIPUTAR, PanelKanan
 from mymusic.ui.panel_koleksi import PanelKoleksi
+from mymusic.ui.tray import TrayAplikasi
 from mymusic.ui.widgets import SAMPUL_SUKA, PanelBulat, Toast
 
 
 class JendelaUtama(QMainWindow):
+    ditutup = Signal()  # aplikasi benar-benar ditutup (bukan disembunyikan ke tray); main.py lalu keluar
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle(NAMA_APLIKASI)
@@ -52,6 +57,9 @@ class JendelaUtama(QMainWindow):
         # Riwayat navigasi untuk tombol ← →, seperti browser: daftar "lokasi" + posisi yang sedang dibuka.
         self._jejak = [("beranda",)]
         self._posisi_jejak = 0
+        self._tutup_ke_tray = True  # tombol X menyembunyikan jendela; musik tetap jalan (bisa diubah di menu tray)
+        self._keluar = False  # True bila pengguna memilih "Keluar" di menu tray
+        self._sudah_beri_tahu_tray = False
 
         self._buat_tampilan()
         self._sambungkan_sinyal()
@@ -83,6 +91,11 @@ class JendelaUtama(QMainWindow):
         tata_pusat.addWidget(self.tumpukan)
         self.panel_kanan = PanelKanan(self.pemutar)
         self.bilah_pemutar = BilahPemutar(self.pemutar)
+        self.tray = TrayAplikasi(self.pemutar, self)
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.tray.show()
+        # Tombol media keyboard/headset & overlay media Windows (None bila paket winrt tidak ada).
+        self.kontrol_media = buat_kontrol_media(self.pemutar, self)
 
         tubuh = QHBoxLayout()
         tubuh.setSpacing(8)
@@ -160,6 +173,10 @@ class JendelaUtama(QMainWindow):
         self.pemutar.pesan.connect(lambda pesan: pesan.startswith("Gagal") and self.toast.tampilkan(pesan))
         favorit().berubah.connect(self._favorit_berubah)
 
+        self.tray.tampilkan_jendela.connect(self.tampilkan_dari_tray)
+        self.tray.keluar.connect(self.keluar)
+        self.tray.tutup_ke_tray_diubah.connect(lambda aktif: setattr(self, "_tutup_ke_tray", aktif))
+
     def _pasang_pintasan(self):
         """Pintasan keyboard. Saat mengetik di kotak cari, tombol-tombol ini tetap dipakai untuk mengetik."""
         p = self.pemutar
@@ -199,18 +216,45 @@ class JendelaUtama(QMainWindow):
         sesi = self.penyimpanan_sesi.baca()
         self.bilah_pemutar.slider_volume.setValue(sesi.get("volume", VOLUME_AWAL))
         self.tampilkan_panel(sesi.get("panel", DIPUTAR))
+        self._tutup_ke_tray = sesi.get("tutup_ke_tray", True)
+        self.tray.atur_tutup_ke_tray(self._tutup_ke_tray)
         try:
             self.pemutar.pulihkan_sesi(sesi.get("pemutar", {}))
         except (KeyError, TypeError, ValueError):
             pass  # sesi lama tidak cocok dengan format sekarang: mulai dari kosong saja
 
-    def closeEvent(self, event):
+    def _simpan_sesi(self):
         self.penyimpanan_sesi.simpan({
             "volume": self.bilah_pemutar.slider_volume.value(),
             "panel": self.panel_kanan.mode(),
+            "tutup_ke_tray": self._tutup_ke_tray,
             "pemutar": self.pemutar.ke_sesi(),
         })
+
+    def closeEvent(self, event):
+        self._simpan_sesi()  # juga saat disembunyikan, untuk berjaga bila Windows dimatikan tanpa sempat keluar
+        if self._tutup_ke_tray and not self._keluar and self.tray.isVisible():
+            event.ignore()
+            self.hide()
+            if not self._sudah_beri_tahu_tray:
+                self._sudah_beri_tahu_tray = True
+                self.tray.showMessage(NAMA_APLIKASI, "Musik tetap diputar di sini. Klik kanan ikon ini untuk keluar.",
+                                      QIcon(str(FILE_IKON)), 4000)
+            return
+        self.tray.hide()
+        if self.kontrol_media:
+            self.kontrol_media.lepas()
         super().closeEvent(event)
+        self.ditutup.emit()
+
+    def tampilkan_dari_tray(self):
+        self.showNormal()  # juga mengembalikan jendela yang di-minimize
+        self.raise_()
+        self.activateWindow()
+
+    def keluar(self):
+        self._keluar = True
+        self.close()
 
     def tampilkan_halaman(self, halaman):
         self.tumpukan.setCurrentWidget(halaman)

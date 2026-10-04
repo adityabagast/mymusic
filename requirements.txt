@@ -1,3 +1,9 @@
 PySide6==6.11.2
 ytmusicapi==1.12.3
 yt-dlp==2026.8.19
+# Tombol media keyboard & overlay media Windows (opsional: tanpa paket ini aplikasi tetap jalan)
+winrt-runtime==3.2.1
+winrt-Windows.Foundation==3.2.1
+winrt-Windows.Media==3.2.1
+winrt-Windows.Media.Playback==3.2.1
+winrt-Windows.Storage.Streams==3.2.1
