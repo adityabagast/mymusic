@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 )
 
 from mymusic.config import AKSEN, LEBAR_PANEL_KANAN
-from mymusic.ui.widgets import LabelPotong, Sampul, TombolIkon, atur_properti, kosongkan_tata, label
+from mymusic.ui.widgets import LabelPotong, Sampul, TombolIkon, TombolSuka, atur_properti, kosongkan_tata, label
 
 DIPUTAR, ANTREAN = "diputar", "antrean"
 MIME_POSISI = "application/x-mymusic-posisi"  # jenis data yang dibawa saat baris antrean diseret
@@ -173,6 +173,14 @@ class PanelKanan(QFrame):
         self.label_judul.setWordWrap(True)
         self.label_artis = label("", "kecil")
         self.label_artis.setStyleSheet("font-size: 15px;")
+        self.tombol_suka = TombolSuka(None, 22, 36)
+        teks_lagu = QVBoxLayout()
+        teks_lagu.setSpacing(4)
+        teks_lagu.addWidget(self.label_judul)
+        teks_lagu.addWidget(self.label_artis)
+        baris_lagu = QHBoxLayout()
+        baris_lagu.addLayout(teks_lagu, 1)
+        baris_lagu.addWidget(self.tombol_suka, 0, Qt.AlignTop)
 
         tombol_buka = QPushButton("Buka antrean")
         tombol_buka.setProperty("jenis", "teks")
@@ -198,8 +206,7 @@ class PanelKanan(QFrame):
         tata_isi.setSpacing(4)
         tata_isi.addWidget(self.sampul_besar)
         tata_isi.addSpacing(12)
-        tata_isi.addWidget(self.label_judul)
-        tata_isi.addWidget(self.label_artis)
+        tata_isi.addLayout(baris_lagu)
         tata_isi.addSpacing(20)
         tata_isi.addWidget(kotak)
         tata_isi.addStretch()
@@ -280,6 +287,8 @@ class PanelKanan(QFrame):
             self.sampul_besar.atur(lagu.sampul if lagu else "")
             self.label_judul.setText(lagu.judul if lagu else "Belum ada lagu diputar")
             self.label_artis.setText(lagu.artis if lagu else "")
+            self.tombol_suka.atur_lagu(lagu)
+            self.tombol_suka.setVisible(lagu is not None)
             kosongkan_tata(self._tata_berikut)
             posisi = antrean.indeks + 1
             if lagu and posisi < len(antrean):

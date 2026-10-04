@@ -1,10 +1,16 @@
 """Jendela utama: merangkai bilah atas, Koleksi, halaman tengah, panel kanan, dan bilah pemutar."""
+import random
+
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QHBoxLayout, QInputDialog, QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
 
-from mymusic.config import LANGKAH_GESER_MS, LANGKAH_VOLUME, NAMA_APLIKASI, VOLUME_AWAL
+from mymusic.config import (
+    BATAS_RIWAYAT, FILE_RIWAYAT, LANGKAH_GESER_MS, LANGKAH_VOLUME, NAMA_APLIKASI, NAMA_LAGU_DISUKAI, VOLUME_AWAL,
+)
+from mymusic.core.favorit import favorit
 from mymusic.core.pekerja import jalankan_di_latar
 from mymusic.core.pemutar import Pemutar
+from mymusic.services.daftar_tersimpan import DaftarTersimpan
 from mymusic.services.penyimpanan import PenyimpananPlaylist
 from mymusic.services.sesi import PenyimpananSesi
 from mymusic.services.youtube import (
@@ -16,10 +22,10 @@ from mymusic.ui.bilah_pemutar import BilahPemutar
 from mymusic.ui.halaman_beranda import HalamanBeranda
 from mymusic.ui.halaman_cari import HalamanCari
 from mymusic.ui.halaman_lirik import HalamanLirik
-from mymusic.ui.halaman_playlist import SAYA, YOUTUBE, HalamanPlaylist
+from mymusic.ui.halaman_playlist import SAYA, SUKA, YOUTUBE, HalamanPlaylist
 from mymusic.ui.panel_kanan import DIPUTAR, PanelKanan
 from mymusic.ui.panel_koleksi import PanelKoleksi
-from mymusic.ui.widgets import PanelBulat, Toast
+from mymusic.ui.widgets import SAMPUL_SUKA, PanelBulat, Toast
 
 
 class JendelaUtama(QMainWindow):
@@ -32,6 +38,7 @@ class JendelaUtama(QMainWindow):
         self.pemutar = Pemutar(self)
         self.penyimpanan = PenyimpananPlaylist()
         self.penyimpanan_sesi = PenyimpananSesi()
+        self.riwayat = DaftarTersimpan(FILE_RIWAYAT, BATAS_RIWAYAT)
         self.hasil_cari = []
         self.kata_cari = ""
         self.isi_playlist = []  # lagu yang tampil di halaman playlist
@@ -43,10 +50,12 @@ class JendelaUtama(QMainWindow):
         self._sambungkan_sinyal()
         self._pasang_pintasan()
         self._segarkan_koleksi()
+        self.beranda.tampilkan_riwayat(self.riwayat.semua())
         self._pulihkan_sesi()
         jalankan_di_latar(ambil_playlist_rekomendasi,
                           selesai=self.beranda.tampilkan_playlist_rekomendasi,
                           gagal=self.beranda.tampilkan_gagal_playlist)
+        self._muat_mirip_suka()
 
     # ---------- tampilan ----------
 
@@ -97,8 +106,7 @@ class JendelaUtama(QMainWindow):
         b.putar_playlist_saya.connect(self.putar_playlist_saya)
         b.buka_playlist_yt.connect(lambda info: self.buka_playlist_yt(info.id, info.judul))
         b.putar_playlist_yt.connect(lambda info: self.buka_playlist_yt(info.id, info.judul, putar=True))
-        b.putar_rekomendasi.connect(
-            lambda i: self.pemutar.putar_daftar(b.rekomendasi_lagu, i, b.judul_rekomendasi))
+        b.putar_lagu.connect(self.pemutar.putar_daftar)
         b.minta_tempel_link.connect(self._minta_tempel_link)
 
         c = self.halaman_cari
@@ -127,6 +135,7 @@ class JendelaUtama(QMainWindow):
         self.pemutar.mode_berubah.connect(lambda: self.halaman_playlist.atur_acak(self.pemutar.antrean.acak))
         self.pemutar.status_berubah.connect(lambda _: self._segarkan_tombol_playlist())
         self.pemutar.pesan.connect(lambda pesan: pesan.startswith("Gagal") and self.toast.tampilkan(pesan))
+        favorit().berubah.connect(self._favorit_berubah)
 
     def _pasang_pintasan(self):
         """Pintasan keyboard. Saat mengetik di kotak cari, tombol-tombol ini tetap dipakai untuk mengetik."""
@@ -142,6 +151,7 @@ class JendelaUtama(QMainWindow):
             "Ctrl+F": self.bilah_atas.fokus_cari,
             "Ctrl+S": lambda: p.atur_acak(not p.antrean.acak),
             "Ctrl+R": p.ganti_mode_ulang,
+            "Alt+Shift+B": lambda: p.antrean.sekarang and favorit().alihkan(p.antrean.sekarang),
         }
         for tombol, aksi in pintasan.items():
             QShortcut(QKeySequence(tombol), self).activated.connect(aksi)
@@ -287,6 +297,9 @@ class JendelaUtama(QMainWindow):
         self._tandai_koleksi()
         self._segarkan_tombol_playlist()
         self._muat_lirik()
+        if lagu:
+            self.riwayat.tambah(lagu)
+            self.beranda.tampilkan_riwayat(self.riwayat.semua())
         if lagu and lagu.video_id != self._id_rekomendasi:
             self._id_rekomendasi = lagu.video_id
             jalankan_di_latar(ambil_rekomendasi_lagu, lagu.video_id,
@@ -296,34 +309,66 @@ class JendelaUtama(QMainWindow):
         if lagu.video_id == self._id_rekomendasi:
             self.beranda.tampilkan_rekomendasi_lagu(lagu, daftar)
 
+    # ---------- Lagu yang Disukai & rekomendasi dari favorit ----------
+
+    def _favorit_berubah(self, lagu, disukai):
+        self.toast.tampilkan("Ditambahkan ke Lagu yang Disukai" if disukai else "Dihapus dari Lagu yang Disukai")
+        self._segarkan_koleksi()
+        p = self.halaman_playlist
+        if p.jenis == SUKA:  # halaman Lagu yang Disukai sedang ditampilkan: perbarui isinya
+            gulir = p.verticalScrollBar().value()
+            self.buka_playlist_saya(NAMA_LAGU_DISUKAI, pindah_halaman=False)
+            p.verticalScrollBar().setValue(gulir)  # jangan melompat ke atas setiap kali ♥ diklik
+
+    def _muat_mirip_suka(self):
+        """Rak "Karena kamu menyukai …" dari satu lagu favorit acak, sekali saat aplikasi dibuka."""
+        if not len(favorit()):
+            return
+        lagu = random.choice(favorit().semua())
+        jalankan_di_latar(ambil_rekomendasi_lagu, lagu.video_id,
+                          selesai=lambda daftar: self.beranda.tampilkan_mirip_suka(lagu, daftar))
+
     # ---------- Koleksi Kamu (playlist tersimpan) ----------
 
     def _segarkan_koleksi(self):
         semua = [(nama, self.penyimpanan.ambil(nama)) for nama in self.penyimpanan.semua_nama()]
+        self.koleksi.atur_jumlah_suka(len(favorit()))
         self.koleksi.isi([(nama, f"Playlist · {len(lagu)} lagu", lagu[0].sampul if lagu else "")
                           for nama, lagu in semua])
-        self.beranda.isi_pintasan([(nama, lagu[0].sampul if lagu else "") for nama, lagu in semua])
+        pintasan = [(nama, lagu[0].sampul if lagu else "") for nama, lagu in semua]
+        if len(favorit()):
+            pintasan.insert(0, (NAMA_LAGU_DISUKAI, SAMPUL_SUKA))
+        self.beranda.isi_pintasan(pintasan)
         self._tandai_koleksi()
 
     def _tandai_koleksi(self):
         p = self.halaman_playlist
-        terbuka = p.judul if self.tumpukan.currentWidget() is p and p.jenis == SAYA else None
+        terbuka = p.judul if self.tumpukan.currentWidget() is p and p.jenis in (SAYA, SUKA) else None
         diputar = self.pemutar.sumber if self.pemutar.antrean.sekarang else None
         self.koleksi.tandai(terbuka, diputar)
 
-    def buka_playlist_saya(self, nama):
+    def _ambil_playlist_saya(self, nama):
+        """Isi playlist di Koleksi Kamu; "Lagu yang Disukai" diambil dari favorit."""
+        return favorit().semua() if nama == NAMA_LAGU_DISUKAI else self.penyimpanan.ambil(nama)
+
+    def buka_playlist_saya(self, nama, pindah_halaman=True):
         self._nomor_permintaan += 1  # batalkan playlist YouTube yang mungkin masih dimuat
-        self.isi_playlist = self.penyimpanan.ambil(nama)
-        self.halaman_playlist.tampilkan(SAYA, nama, self.isi_playlist, self.pemutar.antrean.sekarang)
-        self.tampilkan_halaman(self.halaman_playlist)
+        self.isi_playlist = self._ambil_playlist_saya(nama)
+        jenis = SUKA if nama == NAMA_LAGU_DISUKAI else SAYA
+        self.halaman_playlist.tampilkan(jenis, nama, self.isi_playlist, self.pemutar.antrean.sekarang)
+        if pindah_halaman:
+            self.tampilkan_halaman(self.halaman_playlist)
         self._segarkan_tombol_playlist()
 
     def putar_playlist_saya(self, nama):
-        daftar = self.penyimpanan.ambil(nama)
+        daftar = self._ambil_playlist_saya(nama)
         if daftar:
             self.pemutar.putar_daftar(daftar, sumber=nama)
 
     def _tanya_timpa(self, nama):
+        if nama == NAMA_LAGU_DISUKAI:
+            self.toast.tampilkan(f"Nama “{nama}” sudah dipakai, pilih nama lain")
+            return False
         if nama not in self.penyimpanan.semua_nama():
             return True
         jawab = QMessageBox.question(self, "Timpa playlist?", f"Playlist “{nama}” sudah ada. Timpa?")

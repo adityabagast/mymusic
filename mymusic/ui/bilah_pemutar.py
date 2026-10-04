@@ -6,7 +6,7 @@ from mymusic.config import AKSEN, VOLUME_AWAL
 from mymusic.core.antrean import ULANG_MATI, ULANG_SATU
 from mymusic.ui.ikon import pixmap_ikon
 from mymusic.ui.tema import TEKS, TEKS_REDUP
-from mymusic.ui.widgets import LabelPotong, Sampul, TombolBulat, TombolIkon, label
+from mymusic.ui.widgets import LabelPotong, Sampul, TombolBulat, TombolIkon, TombolSuka, label
 
 
 def format_waktu(ms):
@@ -43,8 +43,11 @@ class BilahPemutar(QWidget):
         tata_kiri = QHBoxLayout(kiri)
         tata_kiri.setContentsMargins(0, 0, 0, 0)
         tata_kiri.setSpacing(12)
+        self.tombol_suka = TombolSuka()
         tata_kiri.addWidget(self.sampul)
         tata_kiri.addLayout(teks, 1)
+        tata_kiri.addWidget(self.tombol_suka)
+        tata_kiri.addStretch()  # stretch 0: hanya mengambil ruang yang tidak dipakai teks
 
         # Tengah: tombol kendali + progres
         self.tombol_acak = TombolIkon("acak", "Acak", 18, 32)
@@ -155,6 +158,16 @@ class BilahPemutar(QWidget):
         self.sampul.atur(lagu.sampul if lagu else "")
         self.label_judul.setText(lagu.judul if lagu else "")
         self.label_artis.setText(lagu.artis if lagu else "")
+        # Teks tidak dibiarkan melebar agar ♥ menempel di belakang judul, seperti Spotify. Kedua label diberi
+        # batas yang sama (yang terlebar), karena kolom teks ikut batas terkecil dari isinya.
+        labels = (self.label_judul, self.label_artis)
+        for label_teks in labels:
+            label_teks.ensurePolished()  # agar ukuran huruf dari QSS sudah terpasang sebelum diukur
+        lebar = max(label_teks.fontMetrics().horizontalAdvance(label_teks.text()) for label_teks in labels) + 4
+        for label_teks in labels:
+            label_teks.setMaximumWidth(lebar)
+        self.tombol_suka.atur_lagu(lagu)
+        self.tombol_suka.setVisible(lagu is not None)
 
     def _posisi_berubah(self, posisi):
         if not self._sedang_geser:

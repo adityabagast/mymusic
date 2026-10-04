@@ -1,13 +1,16 @@
 """Komponen kecil yang dipakai ulang di banyak tempat."""
 from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPalette, QRegion
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPalette, QPixmap, QRegion
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QSizePolicy, QWidget
 
 from mymusic.config import AKSEN
+from mymusic.core.favorit import favorit
 from mymusic.core.sampul import pemuat_sampul
 from mymusic.services.youtube import perbesar_sampul
 from mymusic.ui.ikon import ikon, pixmap_ikon
-from mymusic.ui.tema import PANEL, TEKS_DI_AKSEN, TEKS_REDUP, TERPILIH
+from mymusic.ui.tema import PANEL, TEKS, TEKS_DI_AKSEN, TEKS_REDUP, TERPILIH
+
+SAMPUL_SUKA = "mymusic:suka"  # "URL" khusus: Sampul menggambar sampul Lagu yang Disukai sendiri
 
 
 def atur_properti(widget, nama, nilai):
@@ -59,6 +62,36 @@ class TombolIkon(QPushButton):
         self.setIconSize(QSize(self._ukuran_ikon, self._ukuran_ikon))
 
 
+class TombolSuka(TombolIkon):
+    """Tombol ♥ sebuah lagu. Ikut berubah sendiri bila lagu itu disukai/dibatalkan dari tempat lain."""
+
+    def __init__(self, lagu=None, ukuran_ikon=18, ukuran=32):
+        super().__init__("hati", "", ukuran_ikon, ukuran)
+        self.disukai = False
+        self.clicked.connect(self._klik)
+        favorit().berubah.connect(self._favorit_berubah)
+        self.atur_lagu(lagu)
+
+    def atur_lagu(self, lagu):
+        self._lagu = lagu
+        self._tampilkan(favorit().ada(lagu))
+
+    def _tampilkan(self, disukai):
+        self.disukai = disukai
+        self.ganti_ikon("hati_penuh" if disukai else "hati", AKSEN if disukai else TEKS_REDUP)
+        keterangan = "Hapus dari Lagu yang Disukai" if disukai else "Simpan ke Lagu yang Disukai"
+        self.setToolTip(keterangan)
+        self.setAccessibleName(keterangan)
+
+    def _klik(self):
+        if self._lagu:
+            favorit().alihkan(self._lagu)
+
+    def _favorit_berubah(self, lagu, disukai):
+        if self._lagu and lagu.video_id == self._lagu.video_id:
+            self._tampilkan(disukai)
+
+
 class TombolBulat(QPushButton):
     """Tombol putar/jeda bulat (aksen di header & kartu, putih di bilah pemutar)."""
 
@@ -85,6 +118,20 @@ def warna_dominan(gambar):
     return QColor.fromHsvF(max(h, 0), min(s * 1.1, 1), min(max(v, 0.25), 0.55))
 
 
+def gambar_sampul_suka(ukuran):
+    """Sampul Lagu yang Disukai: gradasi warna aksen dengan hati di tengah."""
+    gambar = QPixmap(ukuran, ukuran)
+    pelukis = QPainter(gambar)
+    gradasi = QLinearGradient(0, 0, ukuran, ukuran)
+    gradasi.setColorAt(0, QColor(AKSEN).lighter(115))
+    gradasi.setColorAt(1, QColor(AKSEN).darker(170))
+    pelukis.fillRect(gambar.rect(), gradasi)
+    sisi = int(ukuran * 0.42)
+    pelukis.drawPixmap((ukuran - sisi) // 2, (ukuran - sisi) // 2, pixmap_ikon("hati_penuh", TEKS, sisi))
+    pelukis.end()
+    return gambar
+
+
 class Sampul(QWidget):
     """Gambar sampul persegi bersudut bulat. Selama gambar belum ada, tampil kotak dengan ikon not."""
     gambar_siap = Signal(object)  # QPixmap
@@ -97,6 +144,11 @@ class Sampul(QWidget):
         self._url = ""
 
     def atur(self, url):
+        if url == SAMPUL_SUKA:
+            if self._url != url:
+                self._url = url
+                self._terima(url, gambar_sampul_suka(max(self.width(), 120)))
+            return
         url = perbesar_sampul(url, 544 if self.width() > 120 else 120)
         if url == self._url:
             return

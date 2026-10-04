@@ -5,9 +5,11 @@ from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QVBoxLayout
 from mymusic.config import AKSEN
 from mymusic.ui.baris_lagu import DaftarLagu
 from mymusic.ui.tema import TEKS_REDUP, TERPILIH
-from mymusic.ui.widgets import LabelPotong, LatarGradasi, Sampul, TombolBulat, TombolIkon, label, warna_dominan
+from mymusic.ui.widgets import (
+    SAMPUL_SUKA, LabelPotong, LatarGradasi, Sampul, TombolBulat, TombolIkon, label, warna_dominan,
+)
 
-SAYA, YOUTUBE = "saya", "youtube"
+SAYA, YOUTUBE, SUKA = "saya", "youtube", "suka"  # SUKA = Lagu yang Disukai
 
 
 class HalamanPlaylist(QScrollArea):
@@ -96,18 +98,20 @@ class HalamanPlaylist(QScrollArea):
 
     def tampilkan(self, jenis, judul, daftar_lagu, lagu_aktif=None):
         self.daftar_lagu = daftar_lagu
-        self._isi_kepala(jenis, judul, daftar_lagu[0].sampul if daftar_lagu else "")
+        sampul = SAMPUL_SUKA if jenis == SUKA else daftar_lagu[0].sampul if daftar_lagu else ""
+        self._isi_kepala(jenis, judul, sampul)
         menit = round(sum(lagu.detik for lagu in daftar_lagu) / 60)
-        pemilik = "Kamu" if jenis == SAYA else "YouTube"
+        pemilik = "YouTube" if jenis == YOUTUBE else "Kamu"
         self.label_info.setText(f"{pemilik} · {len(daftar_lagu)} lagu, sekitar {menit} menit")
         self.label_status.setVisible(not daftar_lagu)
-        self.label_status.setText("Playlist ini kosong.")
+        self.label_status.setText("Lagu yang kamu sukai akan muncul di sini. Klik ♥ pada lagu mana pun untuk menyimpannya."
+                                  if jenis == SUKA else "Playlist ini kosong.")
         self.daftar.isi(daftar_lagu, 1, lagu_aktif)
 
     def _isi_kepala(self, jenis, judul, url_sampul):
         self.jenis = jenis
         self.judul = judul
-        self.label_jenis.setText("Playlist" if jenis == SAYA else "Playlist YouTube")
+        self.label_jenis.setText("Playlist YouTube" if jenis == YOUTUBE else "Playlist")
         self.label_judul.setText(judul)
         self.label_judul.setToolTip(judul)
         # Judul panjang dikecilkan hurufnya (seperti Spotify), baru dipotong bila masih kepanjangan.

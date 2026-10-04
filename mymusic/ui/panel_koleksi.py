@@ -1,11 +1,11 @@
-"""Panel kiri "Koleksi Kamu": daftar playlist yang tersimpan."""
+"""Panel kiri "Koleksi Kamu": Lagu yang Disukai di paling atas, lalu playlist yang tersimpan."""
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
 
-from mymusic.config import AKSEN, LEBAR_KOLEKSI
+from mymusic.config import AKSEN, LEBAR_KOLEKSI, NAMA_LAGU_DISUKAI
 from mymusic.ui.ikon import pixmap_ikon
 from mymusic.ui.tema import TEKS
-from mymusic.ui.widgets import LabelPotong, Sampul, TombolIkon, atur_properti, kosongkan_tata, label
+from mymusic.ui.widgets import SAMPUL_SUKA, LabelPotong, Sampul, TombolIkon, atur_properti, kosongkan_tata, label
 
 
 class ItemKoleksi(QFrame):
@@ -28,7 +28,8 @@ class ItemKoleksi(QFrame):
         teks = QVBoxLayout()
         teks.setSpacing(2)
         teks.addWidget(self.label_nama)
-        teks.addWidget(LabelPotong(keterangan, "kecil"))
+        self.label_keterangan = LabelPotong(keterangan, "kecil")
+        teks.addWidget(self.label_keterangan)
         tata = QHBoxLayout(self)
         tata.setContentsMargins(8, 8, 12, 8)
         tata.setSpacing(12)
@@ -73,25 +74,33 @@ class PanelKoleksi(QFrame):
         kepala.addWidget(label("Koleksi Kamu", "judul-panel"), 1)
         kepala.addWidget(tombol_tambah)
 
-        isi = QWidget()
-        self._tata_item = QVBoxLayout(isi)
-        self._tata_item.setContentsMargins(8, 0, 8, 8)
+        # Lagu yang Disukai selalu ada, jadi dibuat sekali dan tidak ikut dihapus saat daftar diisi ulang.
+        self.item_suka = ItemKoleksi(NAMA_LAGU_DISUKAI, "", SAMPUL_SUKA)
+        self.item_suka.klik.connect(lambda: self.buka.emit(NAMA_LAGU_DISUKAI))
+        self.item_suka.putar.connect(lambda: self.putar.emit(NAMA_LAGU_DISUKAI))
+        self._tata_item = QVBoxLayout()
         self._tata_item.setSpacing(0)
-        self._tata_item.addStretch()
-        gulir = QScrollArea()
-        gulir.setWidgetResizable(True)
-        gulir.setWidget(isi)
-
         self.label_kosong = label("Belum ada playlist. Simpan antreanmu dengan tombol +, "
                                   "atau simpan playlist YouTube yang kamu buka.", "kecil")
         self.label_kosong.setWordWrap(True)
-        self.label_kosong.setContentsMargins(20, 8, 20, 8)
+        self.label_kosong.setContentsMargins(12, 12, 12, 8)
+
+        isi = QWidget()
+        tata_isi = QVBoxLayout(isi)
+        tata_isi.setContentsMargins(8, 0, 8, 8)
+        tata_isi.setSpacing(0)
+        tata_isi.addWidget(self.item_suka)
+        tata_isi.addLayout(self._tata_item)
+        tata_isi.addWidget(self.label_kosong)
+        tata_isi.addStretch()
+        gulir = QScrollArea()
+        gulir.setWidgetResizable(True)
+        gulir.setWidget(isi)
 
         tata = QVBoxLayout(self)
         tata.setContentsMargins(0, 0, 0, 0)
         tata.setSpacing(0)
         tata.addLayout(kepala)
-        tata.addWidget(self.label_kosong)
         tata.addWidget(gulir, 1)
 
     def isi(self, daftar):
@@ -104,9 +113,11 @@ class PanelKoleksi(QFrame):
             item.putar.connect(lambda nama=nama: self.putar.emit(nama))
             self._tata_item.addWidget(item)
             self._item.append(item)
-        self._tata_item.addStretch()
         self.label_kosong.setVisible(not daftar)
 
+    def atur_jumlah_suka(self, jumlah):
+        self.item_suka.label_keterangan.setText(f"Playlist · {jumlah} lagu")
+
     def tandai(self, terpilih=None, diputar=None):
-        for item in self._item:
+        for item in [self.item_suka, *self._item]:
             item.atur_status(item.nama == terpilih, item.nama == diputar)

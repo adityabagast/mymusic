@@ -1,10 +1,10 @@
-"""Halaman Beranda: salam, pintasan playlist, rekomendasi lagu & playlist, ajakan impor link."""
+"""Halaman Beranda: salam, pintasan playlist, baru diputar, rekomendasi lagu & playlist, ajakan impor link."""
 from datetime import datetime
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
-from mymusic.config import AKSEN
+from mymusic.config import AKSEN, BATAS_REKOMENDASI
 from mymusic.ui.ikon import pixmap_ikon
 from mymusic.ui.kartu import Kartu, RakKartu, Ubin
 from mymusic.ui.tema import PANEL, TEKS, TERPILIH
@@ -22,19 +22,46 @@ def salam_waktu():
     return "Selamat malam"
 
 
+class BagianLagu(QWidget):
+    """Satu rak kartu lagu (judul + keterangan + kartu). Tersembunyi selama belum ada isinya."""
+    putar = Signal(object, int, str)  # daftar lagu, posisi, nama sumber antrean
+
+    def __init__(self, keterangan):
+        super().__init__()
+        self.label_judul = label("", "judul-bagian")
+        self.rak = RakKartu()
+        tata = QVBoxLayout(self)
+        tata.setContentsMargins(0, 36, 0, 0)
+        tata.setSpacing(2)
+        tata.addWidget(self.label_judul)
+        tata.addWidget(label(keterangan, "kecil"))
+        tata.addSpacing(6)
+        tata.addWidget(self.rak)
+        self.hide()
+
+    def isi(self, judul, daftar_lagu, sumber):
+        self.label_judul.setText(judul)
+        kartu = []
+        for i, lagu in enumerate(daftar_lagu):
+            satu = Kartu(lagu.judul, lagu.artis, lagu.sampul)
+            satu.klik.connect(lambda i=i: self.putar.emit(daftar_lagu, i, sumber))
+            satu.putar.connect(lambda i=i: self.putar.emit(daftar_lagu, i, sumber))
+            kartu.append(satu)
+        self.rak.isi(kartu)
+        self.setVisible(bool(daftar_lagu))
+
+
 class HalamanBeranda(QScrollArea):
     buka_playlist_saya = Signal(str)
     putar_playlist_saya = Signal(str)
     buka_playlist_yt = Signal(object)  # InfoPlaylist
     putar_playlist_yt = Signal(object)  # InfoPlaylist
-    putar_rekomendasi = Signal(int)  # posisi di self.rekomendasi_lagu
+    putar_lagu = Signal(object, int, str)  # daftar lagu, posisi, nama sumber antrean
     minta_tempel_link = Signal()
 
     def __init__(self):
         super().__init__()
         self.setWidgetResizable(True)
-        self.rekomendasi_lagu = []
-        self.judul_rekomendasi = ""
 
         latar = LatarGradasi(320)
         latar.atur_warna(campur_warna(AKSEN, PANEL, 0.22))
@@ -53,18 +80,12 @@ class HalamanBeranda(QScrollArea):
         self.grid_ubin.setSpacing(8)
         tata.addWidget(self.wadah_ubin)
 
-        self.bagian_rekomendasi = QWidget()
-        tata_rekom = QVBoxLayout(self.bagian_rekomendasi)
-        tata_rekom.setContentsMargins(0, 36, 0, 0)
-        tata_rekom.setSpacing(2)
-        self.label_rekomendasi = label("", "judul-bagian")
-        self.rak_lagu = RakKartu()
-        tata_rekom.addWidget(self.label_rekomendasi)
-        tata_rekom.addWidget(label("Lagu serupa, diperbarui setiap kali lagu berganti", "kecil"))
-        tata_rekom.addSpacing(6)
-        tata_rekom.addWidget(self.rak_lagu)
-        self.bagian_rekomendasi.hide()  # muncul setelah ada lagu yang diputar
-        tata.addWidget(self.bagian_rekomendasi)
+        self.bagian_riwayat = BagianLagu("Lagu yang terakhir kamu putar")
+        self.bagian_rekomendasi = BagianLagu("Lagu serupa, diperbarui setiap kali lagu berganti")
+        self.bagian_suka = BagianLagu("Lagu serupa dengan salah satu lagu favoritmu")
+        for bagian in (self.bagian_riwayat, self.bagian_rekomendasi, self.bagian_suka):
+            bagian.putar.connect(self.putar_lagu.emit)
+            tata.addWidget(bagian)
 
         tata.addSpacing(32)
         tata.addWidget(label("Playlist rekomendasi", "judul-bagian"))
@@ -123,18 +144,16 @@ class HalamanBeranda(QScrollArea):
             self.grid_ubin.addWidget(ubin, i // 2, i % 2)
         self.wadah_ubin.setVisible(bool(daftar))
 
+    def tampilkan_riwayat(self, daftar_lagu):
+        self.bagian_riwayat.isi("Baru diputar", daftar_lagu[:BATAS_REKOMENDASI], "Baru diputar")
+
     def tampilkan_rekomendasi_lagu(self, lagu_asal, daftar_lagu):
-        self.rekomendasi_lagu = daftar_lagu
-        self.judul_rekomendasi = f"Karena kamu memutar {lagu_asal.judul}"
-        self.label_rekomendasi.setText(f"Karena kamu memutar “{lagu_asal.judul}”")
-        kartu = []
-        for i, lagu in enumerate(daftar_lagu):
-            satu = Kartu(lagu.judul, lagu.artis, lagu.sampul)
-            satu.klik.connect(lambda i=i: self.putar_rekomendasi.emit(i))
-            satu.putar.connect(lambda i=i: self.putar_rekomendasi.emit(i))
-            kartu.append(satu)
-        self.rak_lagu.isi(kartu)
-        self.bagian_rekomendasi.setVisible(bool(daftar_lagu))
+        self.bagian_rekomendasi.isi(f"Karena kamu memutar “{lagu_asal.judul}”", daftar_lagu,
+                                    f"Karena kamu memutar {lagu_asal.judul}")
+
+    def tampilkan_mirip_suka(self, lagu_asal, daftar_lagu):
+        self.bagian_suka.isi(f"Karena kamu menyukai “{lagu_asal.judul}”", daftar_lagu,
+                             f"Karena kamu menyukai {lagu_asal.judul}")
 
     def tampilkan_playlist_rekomendasi(self, daftar_info):
         kartu = []

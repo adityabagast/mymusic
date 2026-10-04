@@ -3,23 +3,31 @@ from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy, QStackedLayout, QVBoxLayout, QWidget
 
 from mymusic.config import AKSEN
+from mymusic.core.favorit import favorit
 from mymusic.ui.ikon import ikon, pixmap_ikon
 from mymusic.ui.tema import TEKS, TEKS_REDUP
-from mymusic.ui.widgets import LabelPotong, Sampul, TombolIkon, atur_properti, label
+from mymusic.ui.widgets import LabelPotong, Sampul, TombolIkon, TombolSuka, atur_properti, label
 
-LEBAR_NOMOR, LEBAR_DURASI, LEBAR_TITIK, JARAK = 40, 56, 32, 16
+LEBAR_NOMOR, LEBAR_SUKA, LEBAR_DURASI, LEBAR_TITIK, JARAK = 40, 32, 56, 32, 16
 
 
-def tampilkan_menu_lagu(induk, posisi, tambah, sisipkan):
+def tampilkan_menu_lagu(induk, posisi, lagu, tambah, sisipkan):
     """Menu ⋯ / klik kanan sebuah lagu. `tambah` dan `sisipkan` adalah fungsi yang dipanggil."""
     menu = QMenu(induk)
     aksi_tambah = menu.addAction(ikon("tambah_antrean", TEKS_REDUP, 18), "Tambah ke antrean")
     aksi_sisipkan = menu.addAction(ikon("berikut", TEKS_REDUP, 18), "Putar berikutnya")
+    menu.addSeparator()
+    if favorit().ada(lagu):
+        aksi_suka = menu.addAction(ikon("hati_penuh", AKSEN, 18), "Hapus dari Lagu yang Disukai")
+    else:
+        aksi_suka = menu.addAction(ikon("hati", TEKS_REDUP, 18), "Simpan ke Lagu yang Disukai")
     dipilih = menu.exec(posisi)
     if dipilih is aksi_tambah:
         tambah()
     elif dipilih is aksi_sisipkan:
         sisipkan()
+    elif dipilih is aksi_suka:
+        favorit().alihkan(lagu)
 
 
 class BarisLagu(QFrame):
@@ -76,6 +84,12 @@ class BarisLagu(QFrame):
         tata_judul.addWidget(sampul)
         tata_judul.addLayout(teks, 1)
 
+        self.tombol_suka = TombolSuka(lagu, 16, LEBAR_SUKA)
+        kebijakan = self.tombol_suka.sizePolicy()
+        kebijakan.setRetainSizeWhenHidden(True)
+        self.tombol_suka.setSizePolicy(kebijakan)
+        favorit().berubah.connect(self._favorit_berubah)
+
         durasi = label(lagu.durasi, "kecil")
         durasi.setFixedWidth(LEBAR_DURASI)
         durasi.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -95,6 +109,7 @@ class BarisLagu(QFrame):
         tata.addWidget(blok_judul, 4)
         if tampil_album:
             tata.addWidget(LabelPotong(lagu.album, "kecil"), 3)
+        tata.addWidget(self.tombol_suka)
         tata.addWidget(durasi)
         tata.addWidget(self.tombol_titik)
         self._segarkan()
@@ -115,9 +130,14 @@ class BarisLagu(QFrame):
         else:
             self._tumpuk.setCurrentWidget(self.label_nomor)
         self.tombol_titik.setVisible(self._disorot)
+        # Seperti Spotify: ♥ selalu terlihat bila lagu disukai, selain itu hanya saat disorot.
+        self.tombol_suka.setVisible(self._disorot or self.tombol_suka.disukai)
+
+    def _favorit_berubah(self, *_):
+        self._segarkan()
 
     def _tampilkan_menu(self, posisi):
-        tampilkan_menu_lagu(self, posisi, self.tambah.emit, self.sisipkan.emit)
+        tampilkan_menu_lagu(self, posisi, self.lagu, self.tambah.emit, self.sisipkan.emit)
 
     def enterEvent(self, event):
         self._disorot = True
@@ -135,6 +155,14 @@ class BarisLagu(QFrame):
 
     def contextMenuEvent(self, event):
         self._tampilkan_menu(event.globalPos())
+
+
+def _tempat_kosong(lebar):
+    """Pengganti kolom tombol di kepala tabel. Bukan addSpacing(): Qt tidak memberi jarak di samping spacer,
+    sehingga kolom kepala akan bergeser dari kolom baris lagu."""
+    tempat = QWidget()
+    tempat.setFixedWidth(lebar)
+    return tempat
 
 
 class KepalaTabel(QFrame):
@@ -159,8 +187,9 @@ class KepalaTabel(QFrame):
         jam.setPixmap(pixmap_ikon("jam", TEKS_REDUP, 16))
         jam.setFixedWidth(LEBAR_DURASI)
         jam.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        tata.addWidget(_tempat_kosong(LEBAR_SUKA))
         tata.addWidget(jam)
-        tata.addSpacing(LEBAR_TITIK)
+        tata.addWidget(_tempat_kosong(LEBAR_TITIK))
 
 
 class DaftarLagu(QWidget):
