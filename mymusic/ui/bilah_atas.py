@@ -1,10 +1,11 @@
 """Bilah paling atas: logo, tombol ← →, tombol Beranda, dan kotak cari."""
 from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QWidget
 
-from mymusic.config import AKSEN, LEBAR_KOLEKSI, NAMA_APLIKASI
-from mymusic.ui.ikon import ikon, pixmap_ikon
-from mymusic.ui.tema import TEKS, TEKS_DI_AKSEN, TEKS_REDUP
+from mymusic.config import FILE_IKON, LEBAR_KOLEKSI, NAMA_APLIKASI
+from mymusic.ui.ikon import ikon
+from mymusic.ui.tema import TEKS, TEKS_REDUP
 from mymusic.ui.widgets import TombolIkon, label
 
 
@@ -20,9 +21,7 @@ class BilahAtas(QWidget):
 
         logo = QLabel()
         logo.setFixedSize(32, 32)
-        logo.setAlignment(Qt.AlignCenter)
-        logo.setPixmap(pixmap_ikon("not", TEKS_DI_AKSEN, 18, tebal=2.4))
-        logo.setStyleSheet(f"background: {AKSEN}; border-radius: 8px;")
+        logo.setPixmap(QIcon(str(FILE_IKON)).pixmap(32, 32))  # sama dengan ikon di taskbar
         nama = label(NAMA_APLIKASI)
         nama.setStyleSheet("font-size: 18px; font-weight: 800;")
         kiri = QWidget()

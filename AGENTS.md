@@ -47,6 +47,7 @@ _Terakhir diperbarui: 2026-10-04_
 | 6 | Lirik: tombol 🎤 di bilah pemutar → halaman lirik di tengah (latar warna sampul), lirik bersinkron disorot & digulir otomatis, klik baris = lompat, gulir manual menjeda 4 dtk | ✅ selesai — diterapkan langsung oleh agent atas permintaan pengguna; 15 pemeriksaan GUI lolos di proyek |
 | 7 | Favorit & riwayat: ♥ di bilah pemutar, panel Sedang diputar, setiap baris lagu, menu ⋯, Alt+Shift+B; "Lagu yang Disukai" di atas Koleksi Kamu & ubin Beranda (sampul gradasi aksen); rak Beranda "Baru diputar" dan "Karena kamu menyukai …" (radio dari 1 favorit acak saat aplikasi dibuka) | ✅ selesai — diterapkan langsung oleh agent atas permintaan pengguna; 32 pemeriksaan GUI + uji data lolos di proyek |
 | 8 | Jelajah: halaman artis (banner, populer, album, single, artis serupa) & album (pakai HalamanPlaylist jenis ALBUM); nama artis/album bisa diklik di mana saja (LabelTautan); Cari menampilkan hasil teratas artis/album + rak Artis & Album; tombol ← → + Alt+←/→ + tombol samping mouse; ▶ di kartu artis/album memutar tanpa pindah halaman | ✅ selesai — diterapkan langsung oleh agent atas permintaan pengguna; 34 pemeriksaan GUI + uji data (API asli) lolos di proyek, regresi tahap 6 & 7 lolos |
+| — | Identitas: ikon aplikasi lavender pastel (desain A: persegi bulat #CDBBFF + not ganda #33206E) dibuat `alat/buat_ikon.py` → `mymusic/aset/ikon.ico` (9 ukuran) + `ikon.svg`; dipasang di jendela/taskbar (AppUserModelID) & logo bilah atas; warna aksen aplikasi ikut lavender | ✅ selesai — dipilih pengguna dari pratinjau; diterapkan agent; uji ikon + regresi tahap 7 & 8 lolos |
 
 **Isi folder saat ini:** struktur pada bagian 4 sudah lengkap (`main.py`, `requirements.txt`, `arsip/`, `mymusic/`), plus `AGENTS.md`, `CLAUDE.md`, `.venv/`. Folder `data/` (playlist.json, sesi.json, favorit.json, riwayat.json) dibuat otomatis dan tidak ikut ke Git.
 
@@ -59,7 +60,7 @@ panel kiri "Koleksi Kamu" 300 px (daftar playlist + tombol + simpan antrean); te
 bulat 56 px, tabel # / Judul / Album / durasi / ⋯); panel kanan 340 px = "Sedang diputar" (sampul besar +
 "Berikutnya dalam antrean") ATAU "Antrean"; bilah pemutar 80 px. Menu ⋯ dan klik kanan: Tambah ke antrean,
 Putar berikutnya. Warna: latar #000000, panel #121212, hover #1F1F1F, terpilih #2A2A2A, teks #FFFFFF,
-teks redup #A7A7A7, aksen default #F5B841 (opsi #FF7A59, #2DD4BF, #A78BFA; teks di atas aksen #111).
+teks redup #A7A7A7, aksen kini lavender #CDBBFF (dulu kuning #F5B841; teks di atas aksen #111).
 Font Plus Jakarta Sans. Model `Lagu` perlu field baru `album` (tersedia di ytmusicapi). Tombol acak/ulang
 sudah diberi tempat tapi baru berfungsi di tahap 5.
 
@@ -70,17 +71,20 @@ beri tahu baris yang harus diperbaiki — jangan menimpa kode pengguna tanpa izi
 ## 4. Struktur proyek (setelah tahap 8)
 
 ```
-main.py                       titik masuk: .venv\Scripts\python.exe main.py (memasang font + QSS)
+main.py                       titik masuk: .venv\Scripts\python.exe main.py (AppUserModelID, ikon, font, QSS)
+alat/buat_ikon.py             membuat mymusic/aset/ikon.svg + ikon.ico (WARNA_LATAR/WARNA_NOT di atas file; jalankan ulang
+                              bila warna diubah). ICO = kepala + direktori + PNG per ukuran, ditulis dengan struct
 requirements.txt
 arsip/                        tahap1_cari.py, tahap2_gui.py (referensi; tidak diimpor)
 data/                         playlist.json, sesi.json, favorit.json, riwayat.json — dibuat otomatis (di .gitignore)
 mymusic/
-├── config.py                 SEMUA konstanta: path (FILE_PLAYLIST/SESI/FAVORIT/RIWAYAT), batas (BATAS_RIWAYAT=50), NAMA_LAGU_DISUKAI, VOLUME_AWAL, LANGKAH_VOLUME,
+├── config.py                 SEMUA konstanta: ID_APLIKASI, path (FILE_IKON, FILE_PLAYLIST/SESI/FAVORIT/RIWAYAT), batas (BATAS_RIWAYAT=50), NAMA_LAGU_DISUKAI, VOLUME_AWAL, LANGKAH_VOLUME,
 │                             LANGKAH_GESER_MS, JEDA_IKUTI_LIRIK_MS, AKSEN, LEBAR_KOLEKSI/PANEL_KANAN, OPSI_YTDLP
 ├── models.py                 Lagu(video_id, judul, artis, album, durasi, sampul, daftar_artis=((nama,id),...), id_album)
 │                             + .teks .detik; InfoPlaylist; InfoArtis; InfoAlbum; Artis; Album; HasilCari;
 │                             Lirik(baris, waktu ms, sumber) + .bersinkron .indeks_pada(ms) (bisect)
 ├── aset/font/                Plus Jakarta Sans *.ttf (dimuat ui/tema.muat_font, cadangan Segoe UI)
+├── aset/ikon.ico, ikon.svg   ikon aplikasi (dibuat alat/buat_ikon.py) — dipakai jendela, taskbar, logo, nanti tray & .exe
 ├── services/                 TANPA Qt
 │   ├── youtube.py            cari (HasilCari, @lru_cache), ambil_artis, ambil_album (@lru_cache), cari_lagu, ambil_playlist, ambil_rekomendasi_lagu (radio), ambil_playlist_rekomendasi
 │   │                         (get_home), ambil_lirik (get_watch_playlist → id lirik → get_lyrics timestamps=True; None bila tak ada),
@@ -189,6 +193,8 @@ tabel bergulir bersama seperti Spotify. Untuk daftar sangat panjang (ribuan lagu
 | Hasil teratas artis tidak punya `browseId` | bentuk data "Top result" berbeda | id & nama diambil dari `artists[0]` (InfoArtis.dari_ytmusic) |
 | `QTest.mouseMove` tidak memicu `mouseMoveEvent` (uji sorot) | di Windows hanya memindahkan kursor | kirim `QMouseEvent(QEvent.MouseMove, ...)` dengan `QApplication.sendEvent` |
 | Uji lama gagal "kembali ke halaman sebelumnya" | `tampilkan_halaman()` langsung tidak tercatat di riwayat ← → | di uji & kode, pindah halaman lewat `_pergi()` / `mulai_cari()` / `buka_*()` |
+| Taskbar menampilkan ikon Python, bukan ikon aplikasi | Windows mengelompokkan proses sebagai python.exe | `SetCurrentProcessExplicitAppUserModelID(ID_APLIKASI)` di `main.py` SEBELUM QApplication dibuat |
+| Pembaca ikon .NET (System.Drawing.Icon) memberi 128 px saat diminta 256 | pembaca lama tidak memakai entri 256-PNG | bukan masalah: Explorer/taskbar mendukung 256-PNG (format standar sejak Vista) |
 | Uji GUI berhenti setelah `jendela.close()` | Qt keluar saat jendela terakhir ditutup | `app.setQuitOnLastWindowClosed(False)` di skrip uji |
 | Baris lama sempat terlihat bertumpuk setelah daftar diisi ulang | widget yang di-`deleteLater()` masih tampil sampai event loop berjalan | `kosongkan_tata` memanggil `hide()` dulu |
 | `HTTP error 403 Forbidden` sesekali dari googlevideo | YouTube menolak sementara (terlihat setelah banyak permintaan beruntun) | Pemutar meminta URL baru sekali & lanjut dari posisi yang sama; pesan "Gagal memutar" baru muncul bila gagal lagi |
@@ -229,7 +235,7 @@ Disepakati dengan pengguna (2026-10-04): **.exe dibuat di tahap 10, sebagai taha
 
 | Tahap | Isi | Catatan |
 |---|---|---|
-| 9 | Ikon tray + tombol media keyboard (Play/Next/Prev) + kontrol di overlay media Windows; ikon aplikasi (.ico) | perilaku khas Windows ini sebaiknya ada sebelum dibungkus .exe |
+| 9 | Ikon tray + tombol media keyboard (Play/Next/Prev) + kontrol di overlay media Windows (ikon .ico sudah ada) | perilaku khas Windows ini sebaiknya ada sebelum dibungkus .exe |
 | 10 | Jadi .exe (PyInstaller) + cara memperbarui yt-dlp | yt-dlp ikut "terkunci" di dalam .exe → perlu jalan keluar saat YouTube berubah (mis. build ulang, atau yt-dlp diperbarui terpisah) |
 | nanti | Unduh untuk offline (`services/unduhan.py`, yt-dlp `download=True`) · tema terang & pilihan aksen (`ui/tema.py`) · "Tampilkan semua" lagu artis (browseId `songs` → playlist) | bisa sebelum/sesudah .exe |
 
@@ -253,3 +259,4 @@ Disepakati dengan pengguna (2026-10-04): **.exe dibuat di tahap 10, sebagai taha
 - **2026-10-04** — Tahap 6 (lirik) selesai. Keputusan: lirik tampil sebagai halaman di tengah (seperti Spotify), bukan mode panel kanan; hanya diambil saat halaman lirik terbuka (hemat permintaan, kurangi risiko 403) dan tidak diambil ulang untuk lagu yang sama; `Lirik` menyeragamkan dua bentuk hasil `get_lyrics` (list LyricLine vs string). Catatan: timestamp lirik dibuat untuk versi audio, jadi bisa meleset di video klip. Pengguna minta agent menerapkan langsung.
 - **2026-10-04** — Tahap 7 (favorit & riwayat) selesai. Keputusan: `Favorit` di core sebagai satu objek global `favorit()` (pola `pemuat_sampul()`) agar setiap `TombolSuka` bisa membaca & mendengarkan tanpa diteruskan lewat banyak konstruktor; sinyal `berubah(lagu, disukai)` membuat setiap tombol hanya memperbarui dirinya bila video_id cocok. Favorit & riwayat memakai satu kelas `DaftarTersimpan` (riwayat dibatasi 50, dicatat setiap `lagu_berubah`). "Lagu yang Disukai" diperlakukan sebagai playlist berjenis SUKA dengan nama khusus (`NAMA_LAGU_DISUKAI`, ditolak sebagai nama playlist baru) dan sampul `SAMPUL_SUKA` agar pola (nama, keterangan, url) di Koleksi/Beranda tetap sama. Rak Beranda dijadikan `BagianLagu` + satu sinyal `putar_lagu(daftar, i, sumber)` (menggantikan `putar_rekomendasi`). Sekalian memperbaiki kolom kepala tabel yang bergeser sejak tahap 4.
 - **2026-10-04** — Tahap 8 (artis & album) selesai. Keputusan: `Lagu` mendapat `daftar_artis` ((nama, id), ...) & `id_album` (data lama tetap terbaca, tampil sebagai teks biasa); nama artis/album jadi tautan lewat `LabelTautan` yang menggambar & memotong teksnya sendiri; perpindahan halaman dari widget mana pun lewat satu objek `navigasi()` (pola `favorit()`); riwayat ← → berupa daftar "lokasi" (tuple) dan SEMUA perpindahan halaman lewat `_pergi()`; `cari`/`ambil_artis`/`ambil_album` memakai `lru_cache` (aman karena dataclass frozen berisi tuple) agar ← → instan; ▶ di kartu artis/album memutar tanpa pindah halaman (seperti Spotify); halaman album memakai ulang HalamanPlaylist. Rencana: tahap 9 tray + tombol media, tahap 10 .exe.
+- **2026-10-05** — Ikon aplikasi dibuat sebelum tahap 9. Pengguna memilih desain A (persegi bulat + not, sama dengan logo) dari 4 usulan, lalu warna lavender pastel dari 6 varian pastel; not memakai ungu tua senada (bukan hitam). Ikon digambar per ukuran (garis lebih tebal ≤ 24 px, kepala not terisi) agar terbaca di tray. Atas pilihan pengguna (dari pratinjau berdampingan), AKSEN aplikasi ikut diganti ke #CDBBFF. Logo di bilah atas kini memakai ikon.ico.

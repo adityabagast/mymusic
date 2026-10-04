@@ -2,6 +2,7 @@
 from pathlib import Path
 
 NAMA_APLIKASI = "MyMusic"
+ID_APLIKASI = "MyMusic.PemutarMusik"  # AppUserModelID Windows: agar taskbar memakai ikon kita, bukan ikon Python
 NAMA_LAGU_DISUKAI = "Lagu yang Disukai"
 
 FOLDER_PROYEK = Path(__file__).resolve().parent.parent
@@ -11,6 +12,7 @@ FILE_SESI = FOLDER_DATA / "sesi.json"
 FILE_FAVORIT = FOLDER_DATA / "favorit.json"
 FILE_RIWAYAT = FOLDER_DATA / "riwayat.json"
 FOLDER_FONT = Path(__file__).resolve().parent / "aset" / "font"
+FILE_IKON = Path(__file__).resolve().parent / "aset" / "ikon.ico"  # dibuat oleh alat/buat_ikon.py
 
 BATAS_HASIL_CARI = 20
 BATAS_LAGU_MIX = 50
@@ -22,7 +24,7 @@ LANGKAH_GESER_MS = 5000  # Shift+→ / Shift+←
 JEDA_IKUTI_LIRIK_MS = 4000  # setelah lirik digulir manual, berhenti mengikuti lagu selama ini
 
 # Tampilan
-AKSEN = "#F5B841"  # pilihan lain dari prototipe: #FF7A59, #2DD4BF, #A78BFA
+AKSEN = "#CDBBFF"  # lavender pastel, senada dengan ikon (sebelumnya kuning #F5B841)
 LEBAR_KOLEKSI = 280
 LEBAR_PANEL_KANAN = 320
 
