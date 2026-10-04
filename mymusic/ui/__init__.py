@@ -1,0 +1,1 @@
+"""Semua widget / tampilan Qt."""

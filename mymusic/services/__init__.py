@@ -1,0 +1,1 @@
+"""Layanan luar (YouTube Music, file). Tidak bergantung pada Qt."""

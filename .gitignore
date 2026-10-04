@@ -1,0 +1,13 @@
+# lingkungan virtual — besar & bisa dibuat ulang dari requirements.txt
+.venv/
+
+# cache Python
+__pycache__/
+*.pyc
+
+# data pribadi pengguna (playlist & sesi)
+data/
+
+# lain-lain
+*.png
+.vscode/
