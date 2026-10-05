@@ -17,6 +17,7 @@ from mymusic.core.pekerja import jalankan_di_latar
 from mymusic.core.pemutar import Pemutar
 from mymusic.services.daftar_tersimpan import DaftarTersimpan
 from mymusic.services.penyimpanan import PenyimpananPlaylist
+from mymusic.services import ytdlp_terbaru
 from mymusic.services.sesi import PenyimpananSesi
 from mymusic.services.youtube import (
     adalah_link, ambil_album, ambil_artis, ambil_id_playlist, ambil_lirik, ambil_playlist, ambil_playlist_rekomendasi,
@@ -60,6 +61,7 @@ class JendelaUtama(QMainWindow):
         self._tutup_ke_tray = True  # tombol X menyembunyikan jendela; musik tetap jalan (bisa diubah di menu tray)
         self._keluar = False  # True bila pengguna memilih "Keluar" di menu tray
         self._sudah_beri_tahu_tray = False
+        self._sedang_perbarui_ytdlp = False
 
         self._buat_tampilan()
         self._sambungkan_sinyal()
@@ -176,6 +178,7 @@ class JendelaUtama(QMainWindow):
         self.tray.tampilkan_jendela.connect(self.tampilkan_dari_tray)
         self.tray.keluar.connect(self.keluar)
         self.tray.tutup_ke_tray_diubah.connect(lambda aktif: setattr(self, "_tutup_ke_tray", aktif))
+        self.tray.perbarui_ytdlp.connect(self._perbarui_ytdlp)
 
     def _pasang_pintasan(self):
         """Pintasan keyboard. Saat mengetik di kotak cari, tombol-tombol ini tetap dipakai untuk mengetik."""
@@ -248,7 +251,9 @@ class JendelaUtama(QMainWindow):
         self.ditutup.emit()
 
     def tampilkan_dari_tray(self):
-        self.showNormal()  # juga mengembalikan jendela yang di-minimize
+        # Cukup buang status minimize; showNormal() akan ikut mengecilkan jendela yang sedang dimaksimalkan.
+        self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
+        self.show()
         self.raise_()
         self.activateWindow()
 
@@ -271,6 +276,26 @@ class JendelaUtama(QMainWindow):
 
     def _alihkan_panel(self, mode):
         self.tampilkan_panel(None if self.panel_kanan.mode() == mode else mode)
+
+    # ---------- perbarui yt-dlp ----------
+    def _perbarui_ytdlp(self):
+        if self._sedang_perbarui_ytdlp:
+            return  # masih berjalan, jangan mengunduh dua kali
+        self._sedang_perbarui_ytdlp = True
+        self.tray.showMessage(NAMA_APLIKASI, "Memeriksa versi yt-dlp terbaru…")
+        jalankan_di_latar(ytdlp_terbaru.perbarui, selesai=self._ytdlp_selesai, gagal=self._ytdlp_gagal)
+
+    def _ytdlp_selesai(self, versi_baru):
+        self._sedang_perbarui_ytdlp = False
+        if versi_baru:
+            pesan = f"yt-dlp {versi_baru} siap. Pilih Keluar di menu tray, lalu buka lagi {NAMA_APLIKASI} untuk memakainya."
+        else:
+            pesan = f"yt-dlp sudah versi terbaru ({ytdlp_terbaru.versi_dipakai()})."
+        self.tray.showMessage(NAMA_APLIKASI, pesan)
+
+    def _ytdlp_gagal(self, pesan):
+        self._sedang_perbarui_ytdlp = False
+        self.tray.showMessage(NAMA_APLIKASI, f"Gagal memperbarui yt-dlp: {pesan}", QSystemTrayIcon.Warning)
 
     # ---------- navigasi (← →) ----------
 

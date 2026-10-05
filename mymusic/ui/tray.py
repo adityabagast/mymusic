@@ -12,6 +12,7 @@ class TrayAplikasi(QSystemTrayIcon):
     tampilkan_jendela = Signal()
     keluar = Signal()
     tutup_ke_tray_diubah = Signal(bool)
+    perbarui_ytdlp = Signal()
 
     def __init__(self, pemutar, parent=None):
         super().__init__(QIcon(str(FILE_IKON)), parent)
@@ -28,6 +29,7 @@ class TrayAplikasi(QSystemTrayIcon):
         self.aksi_tutup_ke_tray = self._menu.addAction("Tetap berjalan di sini saat jendela ditutup")
         self.aksi_tutup_ke_tray.setCheckable(True)
         self.aksi_tutup_ke_tray.toggled.connect(self.tutup_ke_tray_diubah.emit)
+        self._menu.addAction("Perbarui yt-dlp…").triggered.connect(self.perbarui_ytdlp.emit)
         self._menu.addAction(f"Tampilkan {NAMA_APLIKASI}").triggered.connect(self.tampilkan_jendela.emit)
         self._menu.addAction(f"Keluar dari {NAMA_APLIKASI}").triggered.connect(self.keluar.emit)
         self.setContextMenu(self._menu)

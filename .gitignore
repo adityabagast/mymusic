@@ -11,3 +11,6 @@ data/
 # lain-lain
 *.png
 .vscode/
+# hasil build PyInstaller (dibuat ulang dengan: .venv/Scripts/pyinstaller MyMusic.spec --noconfirm)
+build/
+dist/

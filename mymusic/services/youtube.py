@@ -3,11 +3,14 @@ import re
 from functools import lru_cache
 from urllib.parse import parse_qs, urlparse
 
-import yt_dlp
 from ytmusicapi import YTMusic
 
 from mymusic.config import BATAS_HASIL_CARI, BATAS_LAGU_MIX, BATAS_REKOMENDASI, OPSI_YTDLP
 from mymusic.models import Album, Artis, HasilCari, InfoAlbum, InfoArtis, InfoPlaylist, Lagu, Lirik
+from mymusic.services.ytdlp_terbaru import pakai_ytdlp_terbaru
+
+pakai_ytdlp_terbaru()  # harus sebelum `import yt_dlp`, agar versi hasil "Perbarui yt-dlp" yang terpakai
+import yt_dlp  # noqa: E402
 
 _yt = YTMusic()
 _POLA_UKURAN = re.compile(r"=(w\d+-h\d+|s\d+)")

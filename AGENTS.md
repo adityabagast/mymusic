@@ -35,7 +35,7 @@ YouTube Music secara streaming (tidak mengunduh), dengan antrean dan playlist.
 
 ## 3. Status saat ini
 
-_Terakhir diperbarui: 2026-10-04_
+_Terakhir diperbarui: 2026-10-05_
 
 | Tahap | Isi | Status |
 |---|---|---|
@@ -48,7 +48,8 @@ _Terakhir diperbarui: 2026-10-04_
 | 7 | Favorit & riwayat: ♥ di bilah pemutar, panel Sedang diputar, setiap baris lagu, menu ⋯, Alt+Shift+B; "Lagu yang Disukai" di atas Koleksi Kamu & ubin Beranda (sampul gradasi aksen); rak Beranda "Baru diputar" dan "Karena kamu menyukai …" (radio dari 1 favorit acak saat aplikasi dibuka) | ✅ selesai — diterapkan langsung oleh agent atas permintaan pengguna; 32 pemeriksaan GUI + uji data lolos di proyek |
 | 8 | Jelajah: halaman artis (banner, populer, album, single, artis serupa) & album (pakai HalamanPlaylist jenis ALBUM); nama artis/album bisa diklik di mana saja (LabelTautan); Cari menampilkan hasil teratas artis/album + rak Artis & Album; tombol ← → + Alt+←/→ + tombol samping mouse; ▶ di kartu artis/album memutar tanpa pindah halaman | ✅ selesai — diterapkan langsung oleh agent atas permintaan pengguna; 34 pemeriksaan GUI + uji data (API asli) lolos di proyek, regresi tahap 6 & 7 lolos |
 | — | Identitas: ikon aplikasi lavender pastel (desain A: persegi bulat #CDBBFF + not ganda #33206E) dibuat `alat/buat_ikon.py` → `mymusic/aset/ikon.ico` (9 ukuran) + `ikon.svg`; dipasang di jendela/taskbar (AppUserModelID) & logo bilah atas; warna aksen aplikasi ikut lavender | ✅ selesai — dipilih pengguna dari pratinjau; diterapkan agent; uji ikon + regresi tahap 7 & 8 lolos |
-| 9 | Integrasi Windows: tombol media keyboard/headset + overlay media Windows (SMTC lewat paket winrt, opsional) dan ikon tray (menu Putar/Jeda, Berikutnya, Sebelumnya, "Tetap berjalan di sini saat jendela ditutup", Tampilkan, Keluar; klik kiri = tampilkan, klik tengah = putar/jeda); tombol X menyembunyikan ke tray (bisa dimatikan, diingat di sesi) | ✅ selesai — diterapkan agent; 25 pemeriksaan GUI (termasuk perintah dari sisi Windows) + regresi tahap 7 & 8 lolos. **Paket winrt belum dipasang di .venv** — pengguna diberi perintah pip-nya |
+| 9 | Integrasi Windows: tombol media keyboard/headset + overlay media Windows (SMTC lewat paket winrt, opsional) dan ikon tray (menu Putar/Jeda, Berikutnya, Sebelumnya, "Tetap berjalan di sini saat jendela ditutup", Tampilkan, Keluar; klik kiri = tampilkan, klik tengah = putar/jeda); tombol X menyembunyikan ke tray (bisa dimatikan, diingat di sesi) | ✅ selesai — diterapkan agent; 25 pemeriksaan GUI (termasuk perintah dari sisi Windows) + regresi tahap 7 & 8 lolos. Paket winrt sudah dipasang pengguna di .venv (2026-10-05) |
+| 10 | Jadi .exe: A satu instans (`core/satu_instans.py`: QLockFile + QLocalServer; buka lagi = tampilkan jendela), B data ke `%LOCALAPPDATA%\MyMusic` + "Perbarui yt-dlp…" di menu tray (`services/ytdlp_terbaru.py`), C `MyMusic.spec` (PyInstaller 6.22, satu folder → `dist/MyMusic/MyMusic.exe`, 157 MB) | ✅ selesai — A ditulis pengguna; B & C diterapkan agent atas permintaan pengguna. Uji: 8 (A) + 13 logika & 8 GUI (B) + 9 pemeriksaan di dalam .exe (dibuka tanpa konsol seperti dari Explorer, font, ikon, winrt, FFmpeg, yt-dlp unduhan menang atas bawaan, unduh PyPI) + satu instans pada .exe |
 
 **Isi folder saat ini:** struktur pada bagian 4 sudah lengkap (`main.py`, `requirements.txt`, `arsip/`, `mymusic/`), plus `AGENTS.md`, `CLAUDE.md`, `.venv/`. Folder `data/` (playlist.json, sesi.json, favorit.json, riwayat.json) dibuat otomatis dan tidak ikut ke Git.
 
@@ -76,9 +77,12 @@ main.py                       titik masuk: .venv\Scripts\python.exe main.py (App
                               setQuitOnLastWindowClosed(False) + jendela.ditutup → app.quit, karena X bisa ke tray)
 alat/buat_ikon.py             membuat mymusic/aset/ikon.svg + ikon.ico (WARNA_LATAR/WARNA_NOT di atas file; jalankan ulang
                               bila warna diubah). ICO = kepala + direktori + PNG per ukuran, ditulis dengan struct
-requirements.txt              + paket winrt-* (opsional, untuk SMTC; tanpa itu aplikasi tetap jalan)
+requirements.txt              + paket winrt-* (opsional, untuk SMTC; tanpa itu aplikasi tetap jalan) + pyinstaller (hanya untuk build)
+MyMusic.spec                  resep PyInstaller: datas = mymusic/aset, locales ytmusicapi, copy_metadata yt-dlp & ytmusicapi;
+                              console=False; hasil di dist/MyMusic/ (build/ & dist/ di .gitignore)
 arsip/                        tahap1_cari.py, tahap2_gui.py (referensi; tidak diimpor)
-data/                         playlist.json, sesi.json, favorit.json, riwayat.json — dibuat otomatis (di .gitignore)
+%LOCALAPPDATA%\MyMusic\      playlist.json, sesi.json, favorit.json, riwayat.json, yt-dlp\<versi>\ — dibuat otomatis
+                              (dulu data/ di proyek; sejak tahap 10B dipindah agar aman saat .exe dibangun ulang)
 mymusic/
 ├── config.py                 SEMUA konstanta: ID_APLIKASI, path (FILE_IKON, FILE_PLAYLIST/SESI/FAVORIT/RIWAYAT), batas (BATAS_RIWAYAT=50), NAMA_LAGU_DISUKAI, VOLUME_AWAL, LANGKAH_VOLUME,
 │                             LANGKAH_GESER_MS, JEDA_IKUTI_LIRIK_MS, AKSEN, LEBAR_KOLEKSI/PANEL_KANAN, OPSI_YTDLP
@@ -94,7 +98,8 @@ mymusic/
 │   ├── penyimpanan.py        PenyimpananPlaylist (JSON {"nama": [lagu,...]})
 │   ├── daftar_tersimpan.py   DaftarTersimpan(path, batas): JSON [lagu,...] terbaru di depan, tanpa dobel;
 │   │                         semua/ada/tambah/hapus — dipakai favorit & riwayat
-│   └── sesi.py               PenyimpananSesi: data/sesi.json {volume, panel, tutup_ke_tray, pemutar: {...}}; rusak/hilang -> {}
+│   ├── ytdlp_terbaru.py      pakai_ytdlp_terbaru (sebelum import yt_dlp), versi_dipakai, perbarui (wheel PyPI → FOLDER_YTDLP/<versi>)
+│   └── sesi.py               PenyimpananSesi: sesi.json {volume, panel, tutup_ke_tray, pemutar: {...}}; rusak/hilang -> {}
 ├── core/
 │   ├── favorit.py            Favorit(QObject) + favorit() (satu objek, seperti pemuat_sampul); sinyal
 │   │                         berubah(lagu, disukai); ada/alihkan/semua — SATU sumber data untuk semua tombol ♥
@@ -106,6 +111,7 @@ mymusic/
 │   ├── media_windows.py      KontrolMediaWindows: SMTC via winrt MediaPlayer (command_manager dimatikan),
 │   │                         button_pressed → Signal → Pemutar; metadata+sampul+status dari sinyal Pemutar;
 │   │                         buat_kontrol_media() = None bila winrt/SMTC tidak ada; lepas() saat keluar
+│   ├── satu_instans.py       SatuInstans: QLockFile (penentu) + QLocalServer (panggilan); sinyal diminta_tampil
 │   └── sampul.py             pemuat_sampul(): unduh gambar sekali + cache di memori
 └── ui/
     ├── tema.py               warna (LATAR, PANEL, HOVER, ...), muat_font(), stylesheet(font) — QSS memakai
@@ -213,6 +219,10 @@ tabel bergulir bersama seperti Spotify. Untuk daftar sangat panjang (ribuan lagu
 | `HTTP error 403 Forbidden` sesekali dari googlevideo | YouTube menolak sementara (terlihat setelah banyak permintaan beruntun) | Pemutar meminta URL baru sekali & lanjut dari posisi yang sama; pesan "Gagal memutar" baru muncul bila gagal lagi |
 | `setSource()` dengan URL yang sama persis tidak memuat ulang | QMediaPlayer mengabaikan sumber yang tidak berubah | yt-dlp selalu memberi URL baru; dalam uji gunakan URL palsu yang berbeda-beda |
 | `setPosition()` diabaikan tepat setelah `setSource()` | lagu belum dimuat | simpan di `_posisi_tunda`, terapkan saat status LoadedMedia/BufferedMedia |
+| `.venvScriptspython.exe: command not found` | terminal pengguna kadang Git Bash; `\` di Bash = escape | beri perintah dengan `/` (`.venv/Scripts/python.exe`), jalan di Bash & PowerShell; `pip` tanpa awalan .venv memasang ke Python global |
+| Dua `QLocalServer` bernama sama sama-sama berhasil `listen()` di Windows | named pipe Windows boleh punya banyak instans | penentu instans utama = `QLockFile` di folder temp (kunci basi dari proses yang crash dibersihkan Qt); server hanya untuk memanggil |
+| .exe tidak bisa diuji dengan skrip GUI biasa | kode berjalan beku (PYZ), tanpa konsol | bangun spec kedua dari `MyMusic.spec` dengan skrip uji sebagai entry (`console=False` tetap), tulis hasil ke file; jalankan via PowerShell `Start-Process -Wait` agar `sys.stderr` = None seperti dari Explorer |
+| `importlib.metadata.version()` gagal di .exe | PyInstaller tidak membawa metadata paket | `copy_metadata("yt-dlp")` di spec |
 | Playlist privat / ID ngawur → error teknis panjang | ytmusicapi melempar error parsing | dibungkus `RuntimeError("Playlist tidak ditemukan atau bersifat privat.")` |
 
 ## 8. Perintah
@@ -222,6 +232,8 @@ tabel bergulir bersama seperti Spotify. Untuk daftar sangat panjang (ribuan lagu
 .venv\Scripts\python.exe main.py
 # menjalankan tahap 2 (sebelum dipindah ke arsip/)
 .venv\Scripts\python.exe tahap2_gui.py
+# membangun .exe (±1 menit) -> dist/MyMusic/MyMusic.exe; folder _internal/ wajib ikut bila dipindah
+.venv/Scripts/pyinstaller MyMusic.spec --noconfirm
 # pasang ulang dependensi
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
@@ -244,11 +256,10 @@ Contoh link uji: playlist publik `https://www.youtube.com/playlist?list=PL9y1tLe
 
 ## 10. Rencana tahap berikutnya (belum dikerjakan)
 
-Disepakati dengan pengguna (2026-10-04): **.exe dibuat di tahap 10, sebagai tahap terakhir** fitur inti.
+Fitur inti selesai di tahap 10 (.exe). Ide lanjutan: shortcut Start Menu/desktop (atau installer, mis. Inno Setup), info versi di .exe, perkecil ukuran (mis. buang opengl32sw.dll / Qt Quick bila tak terpakai), timeline di overlay media.
 
 | Tahap | Isi | Catatan |
 |---|---|---|
-| 10 | Jadi .exe (PyInstaller) + cara memperbarui yt-dlp + satu instans saja (sekarang membuka 2x = 2 ikon tray & 2 sesi media; mis. QLocalServer) + pastikan paket winrt ikut terbungkus | yt-dlp ikut "terkunci" di dalam .exe → perlu jalan keluar saat YouTube berubah (mis. build ulang, atau yt-dlp diperbarui terpisah) |
 | nanti | Unduh untuk offline (`services/unduhan.py`, yt-dlp `download=True`) · tema terang & pilihan aksen (`ui/tema.py`) · "Tampilkan semua" lagu artis (browseId `songs` → playlist) | bisa sebelum/sesudah .exe |
 
 ## 11. Riwayat keputusan
@@ -273,3 +284,6 @@ Disepakati dengan pengguna (2026-10-04): **.exe dibuat di tahap 10, sebagai taha
 - **2026-10-04** — Tahap 8 (artis & album) selesai. Keputusan: `Lagu` mendapat `daftar_artis` ((nama, id), ...) & `id_album` (data lama tetap terbaca, tampil sebagai teks biasa); nama artis/album jadi tautan lewat `LabelTautan` yang menggambar & memotong teksnya sendiri; perpindahan halaman dari widget mana pun lewat satu objek `navigasi()` (pola `favorit()`); riwayat ← → berupa daftar "lokasi" (tuple) dan SEMUA perpindahan halaman lewat `_pergi()`; `cari`/`ambil_artis`/`ambil_album` memakai `lru_cache` (aman karena dataclass frozen berisi tuple) agar ← → instan; ▶ di kartu artis/album memutar tanpa pindah halaman (seperti Spotify); halaman album memakai ulang HalamanPlaylist. Rencana: tahap 9 tray + tombol media, tahap 10 .exe.
 - **2026-10-05** — Ikon aplikasi dibuat sebelum tahap 9. Pengguna memilih desain A (persegi bulat + not, sama dengan logo) dari 4 usulan, lalu warna lavender pastel dari 6 varian pastel; not memakai ungu tua senada (bukan hitam). Ikon digambar per ukuran (garis lebih tebal ≤ 24 px, kepala not terisi) agar terbaca di tray. Atas pilihan pengguna (dari pratinjau berdampingan), AKSEN aplikasi ikut diganti ke #CDBBFF. Logo di bilah atas kini memakai ikon.ico.
 - **2026-10-05** — Tahap 9 selesai. Keputusan: SMTC lewat pywinrt (`winrt-*` 3.2.1 punya wheel cp314; `winsdk` tidak tersedia) memakai `Windows.Media.Playback.MediaPlayer` hanya sebagai pemegang SMTC; satu mekanisme ini memberi tombol media global + overlay sekaligus (tanpa RegisterHotKey). Paket opsional: impor dibungkus try/except. X default ke tray (+ notifikasi sekali), dapat dimatikan dari menu tray dan diingat di sesi; sesi disimpan juga saat disembunyikan. Timeline/progres di overlay belum diisi (bisa ditambah nanti). Paket belum dipasang ke .venv pengguna (sesuai janji memberi tahu dulu); kode diverifikasi dengan salinan paket di folder sementara.
+- **2026-10-05** — Tahap 10 dimulai. Pilihan pengguna: menulis kode sendiri (kembali ke pola tahap 3), yt-dlp diperbarui lewat tombol di aplikasi (bukan build ulang), PyInstaller mode satu folder. Bagian A: `tampilkan_dari_tray` tidak lagi memakai `showNormal()` (mengecilkan jendela yang dimaksimalkan), cukup buang flag minimize.
+- **2026-10-05** — Bagian B tahap 10: FOLDER_DATA pindah ke `%LOCALAPPDATA%\MyMusic` (dipakai main.py & .exe; tak terhapus saat build ulang; data lama `data/` disalin manual oleh pengguna). `services/ytdlp_terbaru.py`: wheel yt-dlp dari PyPI (cek sha256) diekstrak ke `FOLDER_YTDLP/<versi>/yt_dlp`; `pakai_ytdlp_terbaru()` dipanggil di youtube.py sebelum `import yt_dlp` dan menaruh folder itu di depan `sys.path` hanya bila lebih baru dari bawaan (`importlib.metadata` → .exe perlu `copy_metadata('yt-dlp')`). Folder per versi agar yt-dlp yang sedang berjalan tidak tertimpa (ekstraktor yt-dlp dimuat malas); versi baru berlaku setelah buka ulang. Hasil dilaporkan lewat notifikasi tray karena perintahnya dari menu tray.
+- **2026-10-05** — Tahap 10 selesai (Bagian C diterapkan agent). Keputusan: tanpa pengalihan stderr/log karena yt-dlp terbukti aman saat `sys.stderr` None; PyInstaller memprioritaskan folder yang disisipkan di depan `sys.path` di atas PYZ, jadi mekanisme "Perbarui yt-dlp" berlaku juga di .exe (teruji). Data pengguna di %LOCALAPPDATA% sehingga `--noconfirm` (menghapus dist/) aman.
